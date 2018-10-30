@@ -166,6 +166,7 @@ void handleSerialInput() {
   if (Serial.available()) {
     serialAnswer = Serial.read();
     //add decifierng of serial read
+    if( serialAnswer!=(10)){
     targetNum = serialAnswer - 48;
     data[16] = myNum;
     data[17] = targetNum;
@@ -173,6 +174,7 @@ void handleSerialInput() {
     transmitPoll();
     Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.println(data[16]);
   }
+}
 }
 
 void loop() {
