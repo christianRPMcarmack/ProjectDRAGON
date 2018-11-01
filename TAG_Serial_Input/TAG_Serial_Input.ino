@@ -69,11 +69,11 @@ void setup() {
   // DEBUG monitoring
   Serial.begin(115200);
   delay(1000);
-  Serial.println(F("### DW1000-arduino-ranging-tag ###"));
+ // Serial.println(F("### DW1000-arduino-ranging-tag ###"));
   // initialize the driver
   DW1000.begin(PIN_IRQ, PIN_RST);
   DW1000.select(PIN_SS);
-  Serial.println("DW1000 initialized ...");
+  //Serial.println("DW1000 initialized ...");
   // general configuration
   DW1000.newConfiguration();
   DW1000.setDefaults();
@@ -81,17 +81,17 @@ void setup() {
   DW1000.setNetworkId(10);
   DW1000.enableMode(DW1000.MODE_LONGDATA_RANGE_ACCURACY, 1);//changed
   DW1000.commitConfiguration();
-  Serial.println(F("Committed configuration ..."));
+ // Serial.println(F("Committed configuration ..."));
   // DEBUG chip info and registers pretty printed
   char msg[128];
   DW1000.getPrintableDeviceIdentifier(msg);
-  Serial.print("Device ID: "); Serial.println(msg);
+  //Serial.print("Device ID: "); Serial.println(msg);
   DW1000.getPrintableExtendedUniqueIdentifier(msg);
-  Serial.print("Unique ID: "); Serial.println(msg);
+  //Serial.print("Unique ID: "); Serial.println(msg);
   DW1000.getPrintableNetworkIdAndShortAddress(msg);
-  Serial.print("Network ID & Device Address: "); Serial.println(msg);
+  //Serial.print("Network ID & Device Address: "); Serial.println(msg);
   DW1000.getPrintableDeviceMode(msg);
-  Serial.print("Device mode: "); Serial.println(msg);
+  //Serial.print("Device mode: "); Serial.println(msg);
   // attach callback for (successfully) sent and received messages
   DW1000.attachSentHandler(handleSent);
   DW1000.attachReceivedHandler(handleReceived);
@@ -116,7 +116,7 @@ void resetInactive() {
   if (numTimeOut > 3) {
     serialInput = false;
     numTimeOut = 0;
-    Serial.println("Timed Out");
+    Serial.print("Timed out for link from ");Serial.print(data[17]); Serial.print(" to "); Serial.println(data[16]);
   }
 }
 
@@ -172,7 +172,7 @@ void handleSerialInput() {
       data[17] = targetNum;
       serialInput = true;
       transmitPoll();
-      Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.println(data[16]);
+   //   Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.println(data[16]);
       noteActivity();
     }
   }
@@ -220,7 +220,7 @@ void loop() {
       if (msgId == POLL_ACK && data[17] == myNum) {
         DW1000.getReceiveTimestamp(timePollAckReceived);
         expectedMsgId = RANGE_REPORT;
-        Serial.print("Receive target is "); Serial.print(data[17]); Serial.print(" Receive return is "); Serial.println(data[16]);
+        //Serial.print("Receive target is "); Serial.print(data[17]); Serial.print(" Receive return is "); Serial.println(data[16]);
         data[16] = myNum;
         data[17] = targetNum;
         // Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.println(data[16]);
@@ -230,7 +230,7 @@ void loop() {
         expectedMsgId = POLL_ACK;
         float curRange;
         memcpy(&curRange, data + 1, 4);
-        Serial.print("Time [ms]: "); Serial.print(millis()); Serial.print(" Range: "); Serial.println(curRange);
+        Serial.print("Time [ms]: "); Serial.print(millis()); Serial.print(" Range from "); Serial.print(data[17]); Serial.print(" to "); Serial.print(data[16]);Serial.print(" : ");Serial.println(curRange);////for mesh change data[17] to data[18]
         //transmitPoll();
         if (numReceive == 29) {
           serialInput = false;
@@ -242,7 +242,7 @@ void loop() {
           numReceive++;
           data[16] = myNum;
           data[17] = targetNum;
-          Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.println(data[16]);
+        //  Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.println(data[16]);
           transmitPoll();
         }
         noteActivity();
