@@ -61,7 +61,7 @@ DW1000Time timeRangeReceived;
 DW1000Time timeComputedRange;
 // data buffer
 #define LEN_DATA 18
-byte myNum = 0;
+byte myNum = 1;
 volatile byte targetNum;
 byte data[LEN_DATA];
 // watchdog and reset period

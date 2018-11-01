@@ -1,30 +1,30 @@
-      /*
-   Copyright (c) 2015 by Thomas Trojer <thomas@trojer.net>
-   Decawave DW1000 library for arduino.
+/*
+  Copyright (c) 2015 by Thomas Trojer <thomas@trojer.net>
+  Decawave DW1000 library for arduino.
 
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
 
-       http://www.apache.org/licenses/LICENSE-2.0
+  http://www.apache.org/licenses/LICENSE-2.0
 
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
 
-   @file RangingTag.ino
-   Use this to test two-way ranging functionality with two DW1000. This is
-   the tag component's code which polls for range computation. Addressing and
-   frame filtering is currently done in a custom way, as no MAC features are
-   implemented yet.
+  @file RangingTag.ino
+  Use this to test two-way ranging functionality with two DW1000. This is
+  the tag component's code which polls for range computation. Addressing and
+  frame filtering is currently done in a custom way, as no MAC features are
+  implemented yet.
 
-   Complements the "RangingAnchor" example sketch.
+  Complements the "RangingAnchor" example sketch.
 
-   @todo
-    - use enum instead of define
-    - move strings to flash (less RAM consumption)
+  @todo
+  - use enum instead of define
+  - move strings to flash (less RAM consumption)
 */
 
 #include <SPI.h>
@@ -111,7 +111,7 @@ void resetInactive() {
   expectedMsgId = POLL_ACK;
   transmitPoll();
   noteActivity();
-//  Serial.println("Reset");
+  //  Serial.println("Reset");
   numTimeOut++;
   if (numTimeOut > 3) {
     serialInput = false;
@@ -166,15 +166,16 @@ void handleSerialInput() {
   if (Serial.available()) {
     serialAnswer = Serial.read();
     //add decifierng of serial read
-    if( serialAnswer!=(10)){
-    targetNum = serialAnswer - 48;
-    data[16] = myNum;
-    data[17] = targetNum;
-    serialInput = true;
-    transmitPoll();
-    Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.println(data[16]);
+    if ( serialAnswer != (10)) {
+      targetNum = serialAnswer - 48;
+      data[16] = myNum;
+      data[17] = targetNum;
+      serialInput = true;
+      transmitPoll();
+      Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.println(data[16]);
+      noteActivity();
+    }
   }
-}
 }
 
 void loop() {
@@ -188,7 +189,7 @@ void loop() {
     }
 
     // continue on any success confirmation
-    if (sentAck) { // && data[17] == myNum && data[16] == targetNum) {
+    if (sentAck) {
       sentAck = false;
       byte msgId = data[0];
       if (msgId == POLL) {
@@ -199,36 +200,36 @@ void loop() {
         noteActivity();
       }
     }
-    if (receivedAck) { // && myNum == data[17]) { //  && targetNum == data[16]) {
+    if (receivedAck) {
 
       receivedAck = false;
       // get message and parse
       DW1000.getData(data, LEN_DATA);
       byte msgId = data[0];
-      if (msgId != expectedMsgId) {//add a check for receieve target for every input
+      if (msgId != expectedMsgId && data[17] == myNum) {
         // unexpected message, start over again
         //Serial.print("Received wrong message # "); Serial.println(msgId);
         expectedMsgId = POLL_ACK;
-        //Serial.print("Receive target is "); Serial.print(data[17]); Serial.print(" Receive return is "); Serial.println(data[16]);
+        //   Serial.print("Receive target is "); Serial.print(data[17]); Serial.print(" Receive return is "); Serial.println(data[16]);
         data[16] = myNum;
         data[17] = targetNum;
         //Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.println(data[16]);
         transmitPoll();
         return;
       }
-      if (msgId == POLL_ACK) {// && data[17] == myNum && data[16] == targetNum) {
+      if (msgId == POLL_ACK && data[17] == myNum) {
         DW1000.getReceiveTimestamp(timePollAckReceived);
         expectedMsgId = RANGE_REPORT;
-       // Serial.print("Receive target is "); Serial.print(data[17]); Serial.print(" Receive return is "); Serial.println(data[16]);
+        Serial.print("Receive target is "); Serial.print(data[17]); Serial.print(" Receive return is "); Serial.println(data[16]);
         data[16] = myNum;
         data[17] = targetNum;
-       // Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.println(data[16]);
+        // Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.println(data[16]);
         transmitRange();
         noteActivity();
-      } else if (msgId == RANGE_REPORT) {// && data[17] == myNum && data[16] == targetNum) {
+      } else if (msgId == RANGE_REPORT && data[17] == myNum) {
         expectedMsgId = POLL_ACK;
         float curRange;
-        memcpy(&curRange, data + 1, 5);
+        memcpy(&curRange, data + 1, 4);
         Serial.print("Time [ms]: "); Serial.print(millis()); Serial.print(" Range: "); Serial.println(curRange);
         //transmitPoll();
         if (numReceive == 29) {
@@ -245,7 +246,7 @@ void loop() {
           transmitPoll();
         }
         noteActivity();
-      } else { //if (msgId == RANGE_FAILED && data[17] == myNum && data[16] == targetNum) {
+      } else if (msgId == RANGE_FAILED && data[17] == myNum) {
         expectedMsgId = POLL_ACK;
         //Serial.print("Receive target is "); Serial.print(data[17]); Serial.print(" Receive return is "); Serial.println(data[16]);
         data[16] = myNum;
