@@ -60,7 +60,7 @@ DW1000Time timeRangeReceived;
 // last computed range/time
 DW1000Time timeComputedRange;
 // data buffer
-#define LEN_DATA 18
+#define LEN_DATA 19
 byte myNum = 3;
 volatile byte targetNum;
 byte data[LEN_DATA];

@@ -48,14 +48,16 @@ volatile byte expectedMsgId = POLL_ACK;
 volatile boolean sentAck = false;
 volatile boolean receivedAck = false;
 volatile boolean serialInput = false;
+volatile boolean serialEnd = false;
 // timestamps to remember
 DW1000Time timePollSent;
 DW1000Time timePollAckReceived;
 DW1000Time timeRangeSent;
 // data buffer
-#define LEN_DATA 18
+#define LEN_DATA 19//
 byte myNum = 255;
 volatile byte targetNum;
+volatile byte nextHop;
 byte data[LEN_DATA];
 // watchdog and reset period
 uint32_t lastActivity;
@@ -63,8 +65,11 @@ uint32_t resetPeriod = 250;
 // reply times (same on both sides for symm. ranging)
 uint16_t replyDelayTimeUS = 3000;
 byte serialAnswer;
-volatile uint8_t numReceive = 1;
+byte dumpChar;
+volatile int numReceive = 1;
 volatile uint8_t numTimeOut = 0;
+volatile uint8_t serialCount = 0;
+
 void setup() {
   // DEBUG monitoring
   Serial.begin(115200);
@@ -113,7 +118,7 @@ void resetInactive() {
   noteActivity();
   //  Serial.println("Reset");
   numTimeOut++;
-  if (numTimeOut > 3) {
+  if (numTimeOut > 3000) {//change back to 3 after error testing
     serialInput = false;
     numTimeOut = 0;
     Serial.print("Timed out for link from ");Serial.print(data[17]); Serial.print(" to "); Serial.println(data[16]);
@@ -163,19 +168,37 @@ void receiver() {
 }
 
 void handleSerialInput() {
-  if (Serial.available()) {
+  while (Serial.available()) {
+    serialEnd = true;
     serialAnswer = Serial.read();
     //add decifierng of serial read
-    if ( serialAnswer != (10)) {
+    if ( serialAnswer != (10) && serialCount == 1) {
+      nextHop = serialAnswer - 48;
+      data[18] = nextHop;
+      serialCount++;
+    }
+    if ( serialAnswer != (10) && serialCount == 0) {
       targetNum = serialAnswer - 48;
       data[16] = myNum;
       data[17] = targetNum;
-      serialInput = true;
-      transmitPoll();
-   //   Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.println(data[16]);
-      noteActivity();
+      serialCount++;
+    } 
+    
+    else {
+      dumpChar  = Serial.read();
     }
   }
+  
+    if (serialEnd && serialCount != 0) {
+      if (serialCount < 2) {
+        data[18] = 255;
+      }
+      serialCount = 0;
+      serialInput = true;
+      transmitPoll();
+     // Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.print(data[16]);Serial.print(" Next hop is ");Serial.println(data[18]);
+      noteActivity();
+    }
 }
 
 void loop() {
@@ -230,12 +253,13 @@ void loop() {
         expectedMsgId = POLL_ACK;
         float curRange;
         memcpy(&curRange, data + 1, 4);
-        Serial.print("Time [ms]: "); Serial.print(millis()); Serial.print(" Range from "); Serial.print(data[17]); Serial.print(" to "); Serial.print(data[16]);Serial.print(" : ");Serial.println(curRange);////for mesh change data[17] to data[18]
-        //transmitPoll();
-        if (numReceive == 29) {
+        if (data[18] == 255) {
+        Serial.print("Time [ms]: "); Serial.print(millis()); Serial.print(" Range from "); Serial.print(data[17]); Serial.print(" to "); Serial.print(data[16]);Serial.print(" : ");Serial.println(curRange);//Serial.print(" measure count is ");Serial.println(numReceive);
+        }//transmitPoll();
+        if (numReceive == 3000) {//change back to 30 after error testing
           serialInput = false;
           handleSerialInput();
-          numReceive = 0;
+          numReceive = 1;
           return;
         }
         else {
