@@ -80,7 +80,7 @@ float samplingRate = 0;
 
 void setup() {
   // DEBUG monitoring
-  Serial.begin(115200);
+  Serial.begin(2000000);
   delay(1000);
   Serial.println(F("### DW1000-arduino-ranging-anchor ###"));
   // initialize the driver
@@ -254,6 +254,13 @@ void loop() {
   if (sentAck) {
     sentAck = false;
     byte msgId = data[0];
+    if (msgId == POLL) {
+      DW1000.getTransmitTimestamp(timePollSent);
+      //Serial.print("Sent POLL @ "); Serial.println(timePollSent.getAsFloat());
+    } if (msgId == RANGE) {
+      DW1000.getTransmitTimestamp(timeRangeSent);
+      noteActivity();
+    }
     if (msgId == POLL_ACK) {
       targetNum = data[16];
       DW1000.getTransmitTimestamp(timePollAckSent);
@@ -266,7 +273,7 @@ void loop() {
     DW1000.getData(data, LEN_DATA);
     targetNum = data[16];
     byte msgId = data[0];
-    if (msgId != expectedMsgId && data[17] == myNum && (data[18] == 255 || data[18] == myNum)) {
+    if (msgId != expectedMsgId && data[17] == myNum) {// && (data[18] == 255 || data[18] == myNum)) {
       // unexpected message, start over again (except if already POLL)
       protocolFailed = true;
     }
@@ -275,54 +282,74 @@ void loop() {
 
 
 
+    if (data[18] != 255 && data[18] != myNum) {
+      if (msgId == POLL && data[17] == myNum ) {
+        returnNum = data[16];
+        protocolFailed = false;
+        DW1000.getReceiveTimestamp(timePollReceived);
+        targetNum = data[18];
+        data[17] = targetNum;
+        data[16] = myNum;
+        expectedMsgId = POLL_ACK;
+        transmitPoll();
+      }
 
-    if (msgId == POLL && data[17] == myNum && (data[18] != 255 && data[18] != myNum)) {
-      returnNum = data[16];
-      protocolFailed = false;
-      DW1000.getReceiveTimestamp(timePollReceived);
-      targetNum = data[18];
-      data[17] = targetNum;
-      data[16] = myNum;
-      transmitPoll();
+
+      if (msgId != expectedMsgId && data[17 ] == myNum) {
+        // unexpected message, start over again
+        //Serial.print("Received wrong message # "); Serial.println(msgId);
+        expectedMsgId = POLL_ACK;
+        //   Serial.print("Receive target is "); Serial.print(data[17]); Serial.print(" Receive return is "); Serial.println(data[16]);
+        data[16] = myNum;
+        data[17] = targetNum;
+        // Serial.print("Next hop is ");Serial.println(data[18]);
+        //Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.println(data[16]);
+        transmitPoll();
+        return;
+      }
+      if (msgId == POLL_ACK && data[17] == myNum) {
+        DW1000.getReceiveTimestamp(timePollAckReceived);
+        expectedMsgId = RANGE_REPORT;
+        //Serial.print("Receive target is "); Serial.print(data[17]); Serial.print(" Receive return is "); Serial.println(data[16]);
+        data[16] = myNum;
+        data[17] = targetNum;
+        //  Serial.print("Next hop is ");Serial.println(data[18]);
+        // Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.println(data[16]);
+        transmitRange();
+        noteActivity();
+      }
+      if (msgId == RANGE_REPORT && data[17] == myNum) {
+        expectedMsgId = POLL;
+        float curRange1;
+        targetNum = returnNum;
+        memcpy(&curRange1, data + 1, 4);
+        //delay(1);
+        transmitRangeReport(curRange1);
+        //Serial.print("Target is ");Serial.print(data[17]);Serial.print(" Return is ");Serial.println(data[16]);
+       // DW1000.newTransmit();
+       // DW1000.setDefaults();
+       // data[0] = RANGE_REPORT;
+//        memcpy(&curRange, data + 1, 4);
+//        memcpy(data + 1, &curRange, 4);
+   //     data[18] = data[16];
+   //     data[17] = targetNum;
+ //       data[16] = myNum;
+        // write final ranging result
+       // memcpy(data + 1, &curRange, 4);
+     //   DW1000.setData(data, LEN_DATA);
+     //   DW1000.startTransmit();
+        //  1    DW1000.newTransmit();
+        //  DW1000.setDefaults();
+        //  data[0] = RANGE_REPORT;
+        //  data[17] = returnNum;
+        //  data[16] = myNum;
+        //  // write final ranging result
+        //  memcpy(data + 1, &curRange, 4);
+        //  DW1000.setData(data, LEN_DATA);
+        //  DW1000.startTransmit();
+
+      }
     }
-
-
-    if (msgId != expectedMsgId && data[17] == myNum) {
-      // unexpected message, start over again
-      //Serial.print("Received wrong message # "); Serial.println(msgId);
-      expectedMsgId = POLL_ACK;
-      //   Serial.print("Receive target is "); Serial.print(data[17]); Serial.print(" Receive return is "); Serial.println(data[16]);
-      data[16] = myNum;
-      data[17] = targetNum;
-      // Serial.print("Next hop is ");Serial.println(data[18]);
-      //Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.println(data[16]);
-      transmitPoll();
-      return;
-    }
-    if (msgId == POLL_ACK && data[17] == myNum) {
-      DW1000.getReceiveTimestamp(timePollAckReceived);
-      expectedMsgId = RANGE_REPORT;
-      //Serial.print("Receive target is "); Serial.print(data[17]); Serial.print(" Receive return is "); Serial.println(data[16]);
-      data[16] = myNum;
-      data[17] = targetNum;
-      //  Serial.print("Next hop is ");Serial.println(data[18]);
-      // Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.println(data[16]);
-      transmitRange();
-      noteActivity();
-    } else if (msgId == RANGE_REPORT && data[17] == myNum) {
-      expectedMsgId = POLL;
-      float curRange;
-      memcpy(&curRange, data + 1, 4);
-      data[0] = RANGE_REPORT;
-      data[17] = returnNum;
-      data[16] = myNum;
-      DW1000.newTransmit();
-      DW1000.setDefaults();
-      DW1000.setData(data, LEN_DATA);
-      DW1000.startTransmit();
-    }
-
-
 
 
 
@@ -368,12 +395,12 @@ void loop() {
         // Serial.print("Range: "); Serial.print(distance); Serial.print(" m");
         //  Serial.print("\t Sampling: "); Serial.print(samplingRate); Serial.println(" Hz");
         // update sampling rate (each second)
-       // successRangingCount++;
+        // successRangingCount++;
         //if (curMillis - rangingCountPeriod > 1000) {
         //  samplingRate = (1000.0f * successRangingCount) / (curMillis - rangingCountPeriod);
         //  rangingCountPeriod = curMillis;
-         // successRangingCount = 0;
-       // }
+        // successRangingCount = 0;
+        // }
       }
       else {// if(protocolFailed && data[17] == myNum && data[16] == targetNum) {
         if ( data[17] == myNum && (data[18] == 255 || data[18] == myNum)) {

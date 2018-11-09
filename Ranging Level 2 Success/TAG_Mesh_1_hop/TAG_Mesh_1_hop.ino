@@ -73,7 +73,7 @@ volatile uint8_t serialCount = 0;
 
 void setup() {
   // DEBUG monitoring
-  Serial.begin(115200);
+  Serial.begin(2000000);
   delay(1000);
   // Serial.println(F("### DW1000-arduino-ranging-tag ###"));
   // initialize the driver
@@ -123,12 +123,14 @@ void resetInactive() {
     if (numTimeOut > 3) {//change back to 3 after error testing
       serialInput = false;
       numTimeOut = 0;
+      numReceive = 1;
       Serial.print("Timed out for link from "); Serial.print(targetNum); Serial.print(" to "); Serial.println(data[18]);
     }
   } else {
-    if (numTimeOut > 1) {//change back to 3 after error testing
+    if (numTimeOut > 1) {//change back to 1 after error testing
       serialInput = false;
       numTimeOut = 0;
+      numReceive = 1;
       Serial.print("Timed out for link from "); Serial.print(targetNum); Serial.print(" to "); Serial.println(data[18]);
     }
   }
@@ -145,12 +147,12 @@ void handleReceived() {
 }
 
 void transmitPoll() {
-  DW1000.newTransmit();
+  DW1000.newTransmit(); 
   DW1000.setDefaults();
   data[0] = POLL;
   DW1000.setData(data, LEN_DATA);
   DW1000.startTransmit();
-  //  Serial.println("Send Poll");
+ //  Serial.println("Send Poll");
 }
 
 void transmitRange() {
@@ -186,6 +188,7 @@ void handleSerialInput() {
       data[18] = nextHop;
       serialCount++;
       resetPeriod = 750;
+      expectedMsgId = RANGE_REPORT;
     }
     if ( serialAnswer != (10) && serialCount == 0) {
       targetNum = serialAnswer - 48;
@@ -201,6 +204,7 @@ void handleSerialInput() {
 
   if (serialEnd && serialCount != 0) {
     if (serialCount < 2) {
+      nextHop = 255;
       data[18] = 255;
       resetPeriod = 250;
       // Serial.println("1 input");
@@ -210,7 +214,7 @@ void handleSerialInput() {
     serialEnd = false;
     // Serial.print("Next hop is ");Serial.println(data[18]);
     transmitPoll();
-    // Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.print(data[16]);Serial.print(" Next hop is ");Serial.println(data[18]);
+    Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.print(data[16]);Serial.print(" Next hop is ");Serial.println(data[18]);
     noteActivity();
   }
 }
@@ -245,16 +249,42 @@ void loop() {
       byte msgId = data[0];
       if (msgId != expectedMsgId && data[17] == myNum) {
         // unexpected message, start over again
-        //Serial.print("Received wrong message # "); Serial.println(msgId);
+       // Serial.print("Received wrong message # "); Serial.println(msgId);
         expectedMsgId = POLL_ACK;
         //   Serial.print("Receive target is "); Serial.print(data[17]); Serial.print(" Receive return is "); Serial.println(data[16]);
         data[16] = myNum;
         data[17] = targetNum;
         // Serial.print("Next hop is ");Serial.println(data[18]);
         //Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.println(data[16]);
+        Serial.println("hung up here");
         transmitPoll();
         return;
       }
+//      if (msgId == POLL && data[17] != myNum) {
+//        Serial.print("Something is transmitting to ");Serial.println(data[17]);
+//      }
+//      if (msgId == POLL_ACK && data[17] != myNum) {
+//        Serial.print("Something is responding to ");Serial.println(data[17]);
+//      }
+     // if (msgId == RANGE && data[17] != myNum) {
+     //   Serial.print("Something is ranging to ");Serial.println(data[17]);
+     //   timePollSent.setTimestamp(data + 1);
+     //   timePollAckReceived.setTimestamp(data + 6);
+     //   timeRangeSent.setTimestamp(data + 11);
+     //   Serial.print("timestamp 1: ");Serial.print(timePollSent);Serial.print(" timestamp2: ");Serial.print(timePollAckReceived);Serial.print(" timestamp3: ");Serial.println(timeRangeSent);
+     // }
+//      if (msgId == RANGE_REPORT && data[17] != myNum) {
+//        Serial.print("Something is reporting to ");Serial.print(data[17]);Serial.print(" Return is ");Serial.println(data[18]);
+//        float curRange;
+//        memcpy(&curRange, data + 1, 4);
+//        //if (data[18] == 255) {
+//        // Serial.print("Next hop is ");Serial.println(data[18]);
+//        Serial.print("Time [ms]: "); Serial.print(millis()); Serial.print(" Range from "); Serial.print(targetNum); Serial.print(" to "); Serial.print(data[18]); Serial.print(" : "); Serial.println(curRange); //Serial.print(" measure count is ");Serial.println(numReceive);
+//        
+//      }
+//       if (msgId == RANGE_REPORT && data[17] == myNum) {
+//        Serial.println("Something is reporting to me");
+//      }
       if (msgId == POLL_ACK && data[17] == myNum) {
         DW1000.getReceiveTimestamp(timePollAckReceived);
         expectedMsgId = RANGE_REPORT;
@@ -266,12 +296,14 @@ void loop() {
         transmitRange();
         noteActivity();
       } else if (msgId == RANGE_REPORT && data[17] == myNum) {
+        targetNum = data[16];
         expectedMsgId = POLL_ACK;
         float curRange;
         memcpy(&curRange, data + 1, 4);
         //if (data[18] == 255) {
         // Serial.print("Next hop is ");Serial.println(data[18]);
-        Serial.print("Time [ms]: "); Serial.print(millis()); Serial.print(" Range from "); Serial.print(targetNum); Serial.print(" to "); Serial.print(data[18]); Serial.print(" : "); Serial.println(curRange); //Serial.print(" measure count is ");Serial.println(numReceive);
+        //Serial.print("Time [ms]: "); Serial.print(millis()); Serial.print(" Range from "); Serial.print(targetNum); Serial.print(" to "); Serial.print(data[18]); Serial.print(" : "); Serial.println(curRange); //Serial.print(" measure count is ");Serial.println(numReceive);
+        Serial.println(curRange);
         //}//transmitPoll();
         if (numReceive == 30) {//change back to 30 after error testing
           serialInput = false;
@@ -283,20 +315,25 @@ void loop() {
           numReceive++;
           data[16] = myNum;
           data[17] = targetNum;
-          // Serial.print("Next hop is ");Serial.println(data[18]);
-          //  Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.println(data[16]);
+          if (data[18] != myNum && data[18] != targetNum) {
+            expectedMsgId = RANGE_REPORT;
+          }
+          // Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.print(data[16]);Serial.print(" Next hop is ");Serial.println(data[18]);
+    // if (data[18] == myNum || data[18] == data[17]){
           transmitPoll();
+         // }
         }
         noteActivity();
-      } else if (msgId == RANGE_FAILED && data[17] == myNum) {
-        expectedMsgId = POLL_ACK;
-        //Serial.print("Receive target is "); Serial.print(data[17]); Serial.print(" Receive return is "); Serial.println(data[16]);
-        data[16] = myNum;
-        data[17] = targetNum;
-        //Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.println(data[16]);
-        transmitPoll();
-        noteActivity();
-      }
+      } //else if (msgId == RANGE_FAILED && data[17] == myNum) {
+//        expectedMsgId = POLL_ACK;
+//        //Serial.print("Receive target is "); Serial.print(data[17]); Serial.print(" Receive return is "); Serial.println(data[16]);
+//        data[16] = myNum;
+//        data[17] = targetNum;
+//        data[18] = nextHop;
+//        //Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.println(data[16]);
+//        transmitPoll();
+//        noteActivity();
+//      }
     } //else {
     // Serial.println("hung up here");
     //}
