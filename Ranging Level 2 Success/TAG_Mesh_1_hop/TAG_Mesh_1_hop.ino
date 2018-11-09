@@ -1,3 +1,13 @@
+// Author: Ivan Yurkin
+//Base Ranging Code obtained from https://github.com/thotro/arduino-dw1000
+//Serial Handler and node identification was added on top of base code
+//Tag code is used on the rover beacon to allow the rover to function as a mobile router to obtain ranging measurements to up
+//to 10 nodes 
+//Tag code waits for serial input ranging from 0-9 for pods 1-10. Index starts at 0. Then tag takes 30 measurements and reports 
+//them or times out 3 times before waiting for new serial input
+//Mesh network allows Tag to receive distance between two pods by inputting two characters in the serial input that are not repeat
+//numbers ie. 11 is bad but 01 is good.
+
 /*
   Copyright (c) 2015 by Thomas Trojer <thomas@trojer.net>
   Decawave DW1000 library for arduino.
@@ -73,7 +83,7 @@ volatile uint8_t serialCount = 0;
 
 void setup() {
   // DEBUG monitoring
-  Serial.begin(2000000);
+  Serial.begin(2000000);//increased serial speed to attempt speeding things up. will haved to test what rover can handle 
   delay(1000);
   // Serial.println(F("### DW1000-arduino-ranging-tag ###"));
   // initialize the driver
@@ -83,7 +93,7 @@ void setup() {
   // general configuration
   DW1000.newConfiguration();
   DW1000.setDefaults();
-  DW1000.setDeviceAddress(2);
+  DW1000.setDeviceAddress(2);//not sure what this does currently
   DW1000.setNetworkId(10);
   DW1000.enableMode(DW1000.MODE_LONGDATA_RANGE_ACCURACY, 1);//changed
   DW1000.commitConfiguration();
@@ -101,9 +111,7 @@ void setup() {
   // attach callback for (successfully) sent and received messages
   DW1000.attachSentHandler(handleSent);
   DW1000.attachReceivedHandler(handleReceived);
-  // anchor starts by transmitting a POLL message
   receiver();
-  //transmitPoll();
   noteActivity();
 }
 
@@ -112,7 +120,7 @@ void noteActivity() {
   lastActivity = millis();
 }
 
-void resetInactive() {
+void resetInactive() {//times out if more than 250 ms has passed since last activity or 1 second if pod to pod communication is occuring
   // tag sends POLL and listens for POLL_ACK
   expectedMsgId = POLL_ACK;
   transmitPoll();
@@ -146,7 +154,7 @@ void handleReceived() {
   receivedAck = true;
 }
 
-void transmitPoll() {
+void transmitPoll() {//transmits first ping to node
   DW1000.newTransmit(); 
   DW1000.setDefaults();
   data[0] = POLL;
@@ -155,7 +163,7 @@ void transmitPoll() {
  //  Serial.println("Send Poll");
 }
 
-void transmitRange() {
+void transmitRange() {//transmits second ping to node
   DW1000.newTransmit();
   DW1000.setDefaults();
   data[0] = RANGE;
@@ -170,7 +178,7 @@ void transmitRange() {
   //Serial.print("Expect RANGE to be sent @ "); Serial.println(timeRangeSent.getAsFloat());
 }
 
-void receiver() {
+void receiver() {//receive transmit from nodes
   DW1000.newReceive();
   DW1000.setDefaults();
   // so we don't need to restart the receiver manually
@@ -178,35 +186,36 @@ void receiver() {
   DW1000.startReceive();
 }
 
-void handleSerialInput() {
+void handleSerialInput() {//handle serial inputs
   while (Serial.available()) {
     serialEnd = true;
     serialAnswer = Serial.read();
     //add decifierng of serial read
-    if ( serialAnswer != (10) && serialCount == 1) {
-      nextHop = serialAnswer - 48;
+    if ( serialAnswer != (10) && serialCount == 1) {//ignore enter key and reads in second character
+      nextHop = serialAnswer - 48;//convert ascii to number 
       data[18] = nextHop;
       serialCount++;
-      resetPeriod = 750;
-      expectedMsgId = RANGE_REPORT;
+      resetPeriod = 1000;
+      expectedMsgId = RANGE_REPORT;//response should be distance from pod to pod
     }
-    if ( serialAnswer != (10) && serialCount == 0) {
-      targetNum = serialAnswer - 48;
+    if ( serialAnswer != (10) && serialCount == 0) {//ignore enter key and reads in first character
+      targetNum = serialAnswer - 48;//convert ascii to number 
       data[16] = myNum;
       data[17] = targetNum;
       serialCount++;
     }
 
     else {
-      dumpChar  = Serial.read();
+      dumpChar  = Serial.read();//read rest of serial input and discard extra chars
     }
   }
 
-  if (serialEnd && serialCount != 0) {
+  if (serialEnd && serialCount != 0) {// if only 1 char was input
     if (serialCount < 2) {
       nextHop = 255;
       data[18] = 255;
       resetPeriod = 250;
+      expectedMsgId = POLL_ACK;
       // Serial.println("1 input");
     }
     serialCount = 0;
@@ -256,7 +265,7 @@ void loop() {
         data[17] = targetNum;
         // Serial.print("Next hop is ");Serial.println(data[18]);
         //Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.println(data[16]);
-        Serial.println("hung up here");
+        Serial.println("hung up here");//error if wrong msg id is being broadcast to tag. Should never happen but is an error check
         transmitPoll();
         return;
       }
@@ -324,16 +333,16 @@ void loop() {
          // }
         }
         noteActivity();
-      } //else if (msgId == RANGE_FAILED && data[17] == myNum) {
-//        expectedMsgId = POLL_ACK;
-//        //Serial.print("Receive target is "); Serial.print(data[17]); Serial.print(" Receive return is "); Serial.println(data[16]);
-//        data[16] = myNum;
-//        data[17] = targetNum;
-//        data[18] = nextHop;
-//        //Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.println(data[16]);
-//        transmitPoll();
-//        noteActivity();
-//      }
+      } else if (msgId == RANGE_FAILED && data[17] == myNum) {
+        expectedMsgId = POLL_ACK;
+        //Serial.print("Receive target is "); Serial.print(data[17]); Serial.print(" Receive return is "); Serial.println(data[16]);
+        data[16] = myNum;
+        data[17] = targetNum;
+        data[18] = nextHop;
+        //Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.println(data[16]);
+        transmitPoll();
+        noteActivity();
+      }
     } //else {
     // Serial.println("hung up here");
     //}

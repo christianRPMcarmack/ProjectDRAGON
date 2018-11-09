@@ -1,3 +1,11 @@
+// Author: Ivan Yurkin
+//Base Ranging Code obtained from https://github.com/thotro/arduino-dw1000
+//Serial Handler and node identification was added on top of base code
+//Tag code is used on the rover beacon to allow the rover to function as a mobile router to obtain ranging measurements to up
+//to 10 nodes 
+//Tag code waits for serial input ranging from 0-9 for pods 1-10. Index starts at 0. Then tag takes 30 measurements and reports 
+//them or times out 3 times before waiting for new serial input
+//added functionality for mesh networking by getting pod to pod distance an reporting back to tag.
 /*
    Copyright (c) 2015 by Thomas Trojer <thomas@trojer.net>
    Decawave DW1000 library for arduino.
@@ -98,13 +106,13 @@ void setup() {
   // DEBUG chip info and registers pretty printed
   char msg[128];
   DW1000.getPrintableDeviceIdentifier(msg);
-  Serial.print("Device ID: "); Serial.println(msg);
+  //Serial.print("Device ID: "); Serial.println(msg);
   DW1000.getPrintableExtendedUniqueIdentifier(msg);
-  Serial.print("Unique ID: "); Serial.println(msg);
+  //Serial.print("Unique ID: "); Serial.println(msg);
   DW1000.getPrintableNetworkIdAndShortAddress(msg);
-  Serial.print("Network ID & Device Address: "); Serial.println(msg);
+ // Serial.print("Network ID & Device Address: "); Serial.println(msg);
   DW1000.getPrintableDeviceMode(msg);
-  Serial.print("Device mode: "); Serial.println(msg);
+ // Serial.print("Device mode: "); Serial.println(msg);
   // attach callback for (successfully) sent and received messages
   DW1000.attachSentHandler(handleSent);
   DW1000.attachReceivedHandler(handleReceived);
@@ -120,7 +128,8 @@ void noteActivity() {
   lastActivity = millis();
 }
 
-void resetInactive() {
+void resetInactive() {// reset itself if nothing received. Add later functionality for a start time from receiving a "initialization"
+  //signal from the tag and have it check if 20 min has elapsed.(add in level 3 success software)
   // anchor listens for POLL
   expectedMsgId = POLL;
   receiver();
@@ -137,7 +146,7 @@ void handleReceived() {
   receivedAck = true;
 }
 
-void transmitPoll() {
+void transmitPoll() {//transmits first ping to node
   DW1000.newTransmit();
   DW1000.setDefaults();
   data[0] = POLL;
@@ -146,7 +155,7 @@ void transmitPoll() {
   //  Serial.println("Send Poll");
 }
 
-void transmitRange() {
+void transmitRange() {//transmits second ping to node
   DW1000.newTransmit();
   DW1000.setDefaults();
   data[0] = RANGE;
@@ -161,7 +170,7 @@ void transmitRange() {
   //Serial.print("Expect RANGE to be sent @ "); Serial.println(timeRangeSent.getAsFloat());
 }
 
-void transmitPollAck() {
+void transmitPollAck() {//first response to sender
   DW1000.newTransmit();
   DW1000.setDefaults();
   data[0] = POLL_ACK;
@@ -174,7 +183,7 @@ void transmitPollAck() {
   DW1000.startTransmit();
 }
 
-void transmitRangeReport(float curRange) {
+void transmitRangeReport(float curRange) {//report range back to sender
   DW1000.newTransmit();
   DW1000.setDefaults();
   data[0] = RANGE_REPORT;
@@ -186,7 +195,7 @@ void transmitRangeReport(float curRange) {
   DW1000.startTransmit();
 }
 
-void transmitRangeFailed() {
+void transmitRangeFailed() {//error case
   DW1000.newTransmit();
   DW1000.setDefaults();
   data[0] = RANGE_FAILED;
@@ -196,7 +205,7 @@ void transmitRangeFailed() {
   DW1000.startTransmit();
 }
 
-void receiver() {
+void receiver() {//receive signal
   DW1000.newReceive();
   DW1000.setDefaults();
   // so we don't need to restart the receiver manually
@@ -254,14 +263,14 @@ void loop() {
   if (sentAck) {
     sentAck = false;
     byte msgId = data[0];
-    if (msgId == POLL) {
+    if (msgId == POLL) {//take timestamp
       DW1000.getTransmitTimestamp(timePollSent);
       //Serial.print("Sent POLL @ "); Serial.println(timePollSent.getAsFloat());
-    } if (msgId == RANGE) {
+    } if (msgId == RANGE) {//take timestamp
       DW1000.getTransmitTimestamp(timeRangeSent);
       noteActivity();
     }
-    if (msgId == POLL_ACK) {
+    if (msgId == POLL_ACK) {//take timestamp
       targetNum = data[16];
       DW1000.getTransmitTimestamp(timePollAckSent);
       noteActivity();
@@ -275,14 +284,11 @@ void loop() {
     byte msgId = data[0];
     if (msgId != expectedMsgId && data[17] == myNum) {// && (data[18] == 255 || data[18] == myNum)) {
       // unexpected message, start over again (except if already POLL)
-      protocolFailed = true;
+      protocolFailed = true;//if you get to this point something bad happened and expectedMsgId was not set properly
     }
     //////////mesh it
 
-
-
-
-    if (data[18] != 255 && data[18] != myNum) {
+    if (data[18] != 255 && data[18] != myNum) {//runs if pod to pod distance is requested
       if (msgId == POLL && data[17] == myNum ) {
         returnNum = data[16];
         protocolFailed = false;
@@ -295,7 +301,7 @@ void loop() {
       }
 
 
-      if (msgId != expectedMsgId && data[17 ] == myNum) {
+      if (msgId != expectedMsgId && data[17 ] == myNum) {//error check, should not be here unless expectedMsgId was set incorrectly
         // unexpected message, start over again
         //Serial.print("Received wrong message # "); Serial.println(msgId);
         expectedMsgId = POLL_ACK;
@@ -307,7 +313,7 @@ void loop() {
         transmitPoll();
         return;
       }
-      if (msgId == POLL_ACK && data[17] == myNum) {
+      if (msgId == POLL_ACK && data[17] == myNum) {//respond to pod
         DW1000.getReceiveTimestamp(timePollAckReceived);
         expectedMsgId = RANGE_REPORT;
         //Serial.print("Receive target is "); Serial.print(data[17]); Serial.print(" Receive return is "); Serial.println(data[16]);
@@ -318,55 +324,17 @@ void loop() {
         transmitRange();
         noteActivity();
       }
-      if (msgId == RANGE_REPORT && data[17] == myNum) {
+      if (msgId == RANGE_REPORT && data[17] == myNum) {//if another pod reports distnace, send the distance back to the rover through the requested link
         expectedMsgId = POLL;
         float curRange1;
         targetNum = returnNum;
         memcpy(&curRange1, data + 1, 4);
         //delay(1);
         transmitRangeReport(curRange1);
-        //Serial.print("Target is ");Serial.print(data[17]);Serial.print(" Return is ");Serial.println(data[16]);
-       // DW1000.newTransmit();
-       // DW1000.setDefaults();
-       // data[0] = RANGE_REPORT;
-//        memcpy(&curRange, data + 1, 4);
-//        memcpy(data + 1, &curRange, 4);
-   //     data[18] = data[16];
-   //     data[17] = targetNum;
- //       data[16] = myNum;
-        // write final ranging result
-       // memcpy(data + 1, &curRange, 4);
-     //   DW1000.setData(data, LEN_DATA);
-     //   DW1000.startTransmit();
-        //  1    DW1000.newTransmit();
-        //  DW1000.setDefaults();
-        //  data[0] = RANGE_REPORT;
-        //  data[17] = returnNum;
-        //  data[16] = myNum;
-        //  // write final ranging result
-        //  memcpy(data + 1, &curRange, 4);
-        //  DW1000.setData(data, LEN_DATA);
-        //  DW1000.startTransmit();
-
       }
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    if (msgId == POLL && data[17] == myNum && (data[18] == 255 || data[18] == myNum)) {
+    if (msgId == POLL && data[17] == myNum && (data[18] == 255 || data[18] == myNum)) {//rover requests to talk to current pod
       // on POLL we (re-)start, so no protocol failure
       // Serial.println("Poll Received");
       protocolFailed = false;
@@ -374,11 +342,11 @@ void loop() {
       expectedMsgId = RANGE;
       data[17] = targetNum;
       data[16] = myNum;
-      // Serial.print("Target is ");Serial.print(data[17]);Serial.print(" Return is ");Serial.println(data[16]);
+      // Serial.print("Tarnget is ");Serial.print(data[17]);Serial.print(" Return is ");Serial.println(data[16]);
       transmitPollAck();
       noteActivity();
     }
-    else if (msgId == RANGE && data[17] == myNum && (data[18] == 255 || data[18] == myNum)) {
+    else if (msgId == RANGE && data[17] == myNum && (data[18] == 255 || data[18] == myNum)) {//rover requests to talk to current pod
       DW1000.getReceiveTimestamp(timeRangeReceived);
       expectedMsgId = POLL;
       if (!protocolFailed) {
