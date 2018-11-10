@@ -210,8 +210,8 @@ void handleSerialInput() {//handle serial inputs
     }
   }
 
-  if (serialEnd && serialCount != 0) {// if only 1 char was input
-    if (serialCount < 2) {
+  if (serialEnd && serialCount != 0) {
+    if (serialCount < 2) {// if only 1 char was input
       nextHop = 255;
       data[18] = 255;
       resetPeriod = 250;
@@ -259,13 +259,17 @@ void loop() {
       if (msgId != expectedMsgId && data[17] == myNum) {
         // unexpected message, start over again
        // Serial.print("Received wrong message # "); Serial.println(msgId);
+       if (data[18] == myNum || data[18] == targetNum) {//waiting for reponse from target
         expectedMsgId = POLL_ACK;
+       } else {//waiting for distance from pod to pod link
+        expectedMsgId = RANGE_REPORT;
+       }
         //   Serial.print("Receive target is "); Serial.print(data[17]); Serial.print(" Receive return is "); Serial.println(data[16]);
         data[16] = myNum;
         data[17] = targetNum;
         // Serial.print("Next hop is ");Serial.println(data[18]);
         //Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.println(data[16]);
-        Serial.println("hung up here");//error if wrong msg id is being broadcast to tag. Should never happen but is an error check
+       // Serial.println("hung up here");//error if wrong msg id is being broadcast to tag. Should never happen but is an error check
         transmitPoll();
         return;
       }
