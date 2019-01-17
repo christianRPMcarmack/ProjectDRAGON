@@ -42,7 +42,7 @@
 
 // connection pins
 const uint8_t PIN_RST = 9; // reset pin
-const uint8_t PIN_IRQ = PA3; // irq pin
+const uint8_t PIN_IRQ = PB0; // irq pin
 const uint8_t PIN_SS = SS; // spi select pin
 
 // messages used in the ranging protocol
@@ -73,7 +73,7 @@ volatile byte nextHop;
 byte data[LEN_DATA];
 // watchdog and reset period
 uint32_t lastActivity;
-uint32_t resetPeriod = 250;
+uint32_t resetPeriod = 100;//250;
 // reply times (same on both sides for symm. ranging)
 uint16_t replyDelayTimeUS = 3000;
 byte serialAnswer;
@@ -137,11 +137,11 @@ void resetInactive() {//times out if more than 250 ms has passed since last acti
       Serial.print("Timed out for link from "); Serial.print(targetNum); Serial.print(" to "); Serial.println(data[18]);
     }
   } else {
-    if (numTimeOut > 1) {//change back to 1 after error testing
+    if (numTimeOut > 3) {//change back to 2 after error testing
       serialInput = false;
       numTimeOut = 0;
       numReceive = 1;
-      resetPeriod = 250;
+      resetPeriod = 100;//250;
       expectedMsgId = POLL_ACK;
       Serial.print("Timed out for link from "); Serial.print(targetNum); Serial.print(" to "); Serial.println(data[18]);
     }
@@ -183,12 +183,14 @@ void transmitRange() {//transmits second ping to node
 }
 
 void transmitInitialization() {//initialize pods to set timestamps
+  //serialInput = false;
   DW1000.newTransmit();
   DW1000.setDefaults();
-  serialInput = false;
+  data[0] = INITIALIZATION;
   DW1000.setData(data, LEN_DATA);
   DW1000.startTransmit();
   Serial.println("Initializing Pods");
+  data[0] = POLL;
 }
 void receiver() {//receive transmit from nodes
   DW1000.newReceive();
@@ -210,13 +212,13 @@ void handleSerialInput() {//handle serial inputs
       {
         data[0] = INITIALIZATION;
         dump = true;
-        serialCount++;
+        serialCount = 2;
       }
       if ( serialAnswer != (10) && serialCount == 1) {//ignore enter key and reads in second character
         nextHop = serialAnswer - 48;//convert ascii to number
         data[18] = nextHop;
         serialCount++;
-        resetPeriod = 1000;
+        resetPeriod = 100;//500;
         expectedMsgId = RANGE_REPORT;//response should be distance from pod to pod
         dump = true;
       }
@@ -236,7 +238,8 @@ void handleSerialInput() {//handle serial inputs
     if (serialCount < 2 && data[0] != INITIALIZATION) {// if only 1 char was input
       nextHop = 255;
       data[18] = 255;
-      resetPeriod = 250;
+      //data[0] = POLL
+      resetPeriod = 100;//250;
       expectedMsgId = POLL_ACK;
       // Serial.println("1 input");
     }
@@ -244,14 +247,19 @@ void handleSerialInput() {//handle serial inputs
     serialInput = true;
     serialEnd = false;
     dump = false;
+  //  Serial.println(data[0]);
     // Serial.print("Next hop is ");Serial.println(data[18]);
     if (data[0] == INITIALIZATION) {
+      data[17] = 255;
+      data[18] = 255;
       transmitInitialization();
-      data[0] = POLL;
+      serialInput = false;
+      sentAck = false;
+      return;
     }
    if (data[0] != INITIALIZATION) {
       transmitPoll();
-      Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.print(data[16]); Serial.print(" Next hop is "); Serial.println(data[18]);
+//      Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.print(data[16]); Serial.print(" Next hop is "); Serial.println(data[18]);
     }
     noteActivity();
   }
@@ -344,10 +352,12 @@ void loop() {
         memcpy(&curRange, data + 1, 4);
         //if (data[18] == 255) {
         // Serial.print("Next hop is ");Serial.println(data[18]);
-        //Serial.print("Time [ms]: "); Serial.print(millis()); Serial.print(" Range from "); Serial.print(targetNum); Serial.print(" to "); Serial.print(data[18]); Serial.print(" : "); Serial.println(curRange); //Serial.print(" measure count is ");Serial.println(numReceive);
-        Serial.println(curRange);
+     //   Serial.print("Time [ms]: "); Serial.print(millis()); Serial.print(" Range from "); Serial.print(targetNum); Serial.print(" to "); Serial.print(data[18]); Serial.print(" : "); Serial.println(curRange,3); //Serial.print(" measure count is ");Serial.println(numReceive);
+      Serial.print(millis()); Serial.print(" "); Serial.print(targetNum); Serial.print(" "); Serial.println(curRange,3); //Serial.print(" measure count is ");Serial.println(numReceive);
+     
+      //  Serial.println(curRange,3);
         //}//transmitPoll();
-        if (numReceive == 30) {//change back to 30 after error testing
+        if (numReceive == 10) {//change back to 30 after error testing
           serialInput = false;
           handleSerialInput();
           numReceive = 1;
