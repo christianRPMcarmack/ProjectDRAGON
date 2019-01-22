@@ -8,35 +8,6 @@
 //Mesh network allows Tag to receive distance between two pods by inputting two characters in the serial input that are not repeat
 //numbers ie. 11 is bad but 01 is good.
 
-/*
-  Copyright (c) 2015 by Thomas Trojer <thomas@trojer.net>
-  Decawave DW1000 library for arduino.
-
-  Licensed under the Apache License, Version 2.0 (the "License");
-  you may not use this file except in compliance with the License.
-  You may obtain a copy of the License at
-
-  http://www.apache.org/licenses/LICENSE-2.0
-
-  Unless required by applicable law or agreed to in writing, software
-  distributed under the License is distributed on an "AS IS" BASIS,
-  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-  See the License for the specific language governing permissions and
-  limitations under the License.
-
-  @file RangingTag.ino
-  Use this to test two-way ranging functionality with two DW1000. This is
-  the tag component's code which polls for range computation. Addressing and
-  frame filtering is currently done in a custom way, as no MAC features are
-  implemented yet.
-
-  Complements the "RangingAnchor" example sketch.
-
-  @todo
-  - use enum instead of define
-  - move strings to flash (less RAM consumption)
-*/
-
 #include <SPI.h>
 #include <DW1000.h>
 
@@ -86,11 +57,9 @@ void setup() {
   // DEBUG monitoring
   Serial.begin(2000000);//increased serial speed to attempt speeding things up. will haved to test what rover can handle
   delay(1000);
-  // Serial.println(F("### DW1000-arduino-ranging-tag ###"));
   // initialize the driver
   DW1000.begin(PIN_IRQ, PIN_RST);
   DW1000.select(PIN_SS);
-  //Serial.println("DW1000 initialized ...");
   // general configuration
   DW1000.newConfiguration();
   DW1000.setDefaults();
@@ -179,7 +148,6 @@ void transmitRange() {//transmits second ping to node
   timeRangeSent.getTimestamp(data + 11);
   DW1000.setData(data, LEN_DATA);
   DW1000.startTransmit();
-  //Serial.print("Expect RANGE to be sent @ "); Serial.println(timeRangeSent.getAsFloat());
 }
 
 void transmitInitialization() {//initialize pods to set timestamps
@@ -187,9 +155,13 @@ void transmitInitialization() {//initialize pods to set timestamps
   DW1000.newTransmit();
   DW1000.setDefaults();
   data[0] = INITIALIZATION;
+  uint32_t roverTime = millis();
+  //  Serial.println(roverTime);
+  memcpy(data + 1, &roverTime, 4);
   DW1000.setData(data, LEN_DATA);
   DW1000.startTransmit();
   Serial.println("Initializing Pods");
+  // Serial.println(roverTime);
   data[0] = POLL;
 }
 void receiver() {//receive transmit from nodes
@@ -201,9 +173,9 @@ void receiver() {//receive transmit from nodes
 }
 
 void handleSerialInput() {//handle serial inputs
- // Serial.println("Ready for input");
+  // Serial.println("Ready for input");
   while (Serial.available()) {
-  //  Serial.println("Reading Input");
+    //  Serial.println("Reading Input");
     serialEnd = true;
     serialAnswer = Serial.read();
     //add decifierng of serial read
@@ -247,7 +219,7 @@ void handleSerialInput() {//handle serial inputs
     serialInput = true;
     serialEnd = false;
     dump = false;
-  //  Serial.println(data[0]);
+    //  Serial.println(data[0]);
     // Serial.print("Next hop is ");Serial.println(data[18]);
     if (data[0] == INITIALIZATION) {
       data[17] = 255;
@@ -257,9 +229,9 @@ void handleSerialInput() {//handle serial inputs
       sentAck = false;
       return;
     }
-   if (data[0] != INITIALIZATION) {
+    if (data[0] != INITIALIZATION) {
       transmitPoll();
-//      Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.print(data[16]); Serial.print(" Next hop is "); Serial.println(data[18]);
+      //      Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.print(data[16]); Serial.print(" Next hop is "); Serial.println(data[18]);
     }
     noteActivity();
   }
@@ -295,54 +267,21 @@ void loop() {
       byte msgId = data[0];
       if (msgId != expectedMsgId && data[17] == myNum) {
         // unexpected message, start over again
-        // Serial.print("Received wrong message # "); Serial.println(msgId);
         if (data[18] == myNum || data[18] == targetNum) {//waiting for reponse from target
           expectedMsgId = POLL_ACK;
         } else {//waiting for distance from pod to pod link
           expectedMsgId = RANGE_REPORT;
         }
-        //   Serial.print("Receive target is "); Serial.print(data[17]); Serial.print(" Receive return is "); Serial.println(data[16]);
         data[16] = myNum;
         data[17] = targetNum;
-        // Serial.print("Next hop is ");Serial.println(data[18]);
-        //Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.println(data[16]);
-        // Serial.println("hung up here");//error if wrong msg id is being broadcast to tag. Should never happen but is an error check
         transmitPoll();
         return;
       }
-      //      if (msgId == POLL && data[17] != myNum) {
-      //        Serial.print("Something is transmitting to ");Serial.println(data[17]);
-      //      }
-      //      if (msgId == POLL_ACK && data[17] != myNum) {
-      //        Serial.print("Something is responding to ");Serial.println(data[17]);
-      //      }
-      // if (msgId == RANGE && data[17] != myNum) {
-      //   Serial.print("Something is ranging to ");Serial.println(data[17]);
-      //   timePollSent.setTimestamp(data + 1);
-      //   timePollAckReceived.setTimestamp(data + 6);
-      //   timeRangeSent.setTimestamp(data + 11);
-      //   Serial.print("timestamp 1: ");Serial.print(timePollSent);Serial.print(" timestamp2: ");Serial.print(timePollAckReceived);Serial.print(" timestamp3: ");Serial.println(timeRangeSent);
-      // }
-      //      if (msgId == RANGE_REPORT && data[17] != myNum) {
-      //        Serial.print("Something is reporting to ");Serial.print(data[17]);Serial.print(" Return is ");Serial.println(data[18]);
-      //        float curRange;
-      //        memcpy(&curRange, data + 1, 4);
-      //        //if (data[18] == 255) {
-      //        // Serial.print("Next hop is ");Serial.println(data[18]);
-      //        Serial.print("Time [ms]: "); Serial.print(millis()); Serial.print(" Range from "); Serial.print(targetNum); Serial.print(" to "); Serial.print(data[18]); Serial.print(" : "); Serial.println(curRange); //Serial.print(" measure count is ");Serial.println(numReceive);
-      //
-      //      }
-      //       if (msgId == RANGE_REPORT && data[17] == myNum) {
-      //        Serial.println("Something is reporting to me");
-      //      }
       if (msgId == POLL_ACK && data[17] == myNum) {
         DW1000.getReceiveTimestamp(timePollAckReceived);
         expectedMsgId = RANGE_REPORT;
-        //Serial.print("Receive target is "); Serial.print(data[17]); Serial.print(" Receive return is "); Serial.println(data[16]);
         data[16] = myNum;
         data[17] = targetNum;
-        //  Serial.print("Next hop is ");Serial.println(data[18]);
-        // Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.println(data[16]);
         transmitRange();
         noteActivity();
       } else if (msgId == RANGE_REPORT && data[17] == myNum) {
@@ -350,13 +289,11 @@ void loop() {
         expectedMsgId = POLL_ACK;
         float curRange;
         memcpy(&curRange, data + 1, 4);
-        //if (data[18] == 255) {
         // Serial.print("Next hop is ");Serial.println(data[18]);
-     //   Serial.print("Time [ms]: "); Serial.print(millis()); Serial.print(" Range from "); Serial.print(targetNum); Serial.print(" to "); Serial.print(data[18]); Serial.print(" : "); Serial.println(curRange,3); //Serial.print(" measure count is ");Serial.println(numReceive);
-      Serial.print(millis()); Serial.print(" "); Serial.print(targetNum); Serial.print(" "); Serial.println(curRange,3); //Serial.print(" measure count is ");Serial.println(numReceive);
-     
-      //  Serial.println(curRange,3);
-        //}//transmitPoll();
+        //   Serial.print("Time [ms]: "); Serial.print(millis()); Serial.print(" Range from "); Serial.print(targetNum); Serial.print(" to "); Serial.print(data[18]); Serial.print(" : "); Serial.println(curRange,3); //Serial.print(" measure count is ");Serial.println(numReceive);
+        Serial.print(millis()); Serial.print(" "); Serial.print(targetNum); Serial.print(" "); Serial.print(nextHop); Serial.print(" "); Serial.println(curRange, 3); //Serial.print(" measure count is ");Serial.println(numReceive);
+
+        //  Serial.println(curRange,3);
         if (numReceive == 10) {//change back to 30 after error testing
           serialInput = false;
           handleSerialInput();
@@ -370,27 +307,19 @@ void loop() {
           if (data[18] != myNum && data[18] != targetNum) {
             expectedMsgId = RANGE_REPORT;
           }
-          // Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.print(data[16]);Serial.print(" Next hop is ");Serial.println(data[18]);
-          // if (data[18] == myNum || data[18] == data[17]){
           transmitPoll();
-          // }
         }
         noteActivity();
       } else if (msgId == RANGE_FAILED && data[17] == myNum) {
         expectedMsgId = POLL_ACK;
-        //Serial.print("Receive target is "); Serial.print(data[17]); Serial.print(" Receive return is "); Serial.println(data[16]);
         data[16] = myNum;
         data[17] = targetNum;
         data[18] = nextHop;
-        //Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.println(data[16]);
         transmitPoll();
         noteActivity();
       }
-    } //else {
-    // Serial.println("hung up here");
-    //}
+    }
   } else {
-    //Serial.println("Waiting for input");
     handleSerialInput();
   }
 }

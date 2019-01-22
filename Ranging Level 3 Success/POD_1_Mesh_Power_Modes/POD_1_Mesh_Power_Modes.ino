@@ -7,35 +7,6 @@
 //Tag code waits for serial input ranging from 0-9 for pods 1-10. Index starts at 0. Then tag takes 30 measurements and reports
 //them or times out 3 times before waiting for new serial input
 //added functionality for mesh networking by getting pod to pod distance an reporting back to tag.
-/*
-   Copyright (c) 2015 by Thomas Trojer <thomas@trojer.net>
-   Decawave DW1000 library for arduino.
-
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
-
-       http://www.apache.org/licenses/LICENSE-2.0
-
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
-
-   @file RangingAnchor.ino
-   Use this to test two-way ranging functionality with two
-   DW1000. This is the anchor component's code which computes range after
-   exchanging some messages. Addressing and frame filtering is currently done
-   in a custom way, as no MAC features are implemented yet.
-
-   Complements the "RangingTag" example sketch.
-
-   @todo
-    - weighted average of ranging results based on signal quality
-    - use enum instead of define
-    - move strings to flash (less RAM consumption)
-*/
 
 #include <SPI.h>
 #include <DW1000.h>
@@ -86,6 +57,7 @@ byte data[LEN_DATA];
 // watchdog and reset period
 uint32_t startTime = 0;
 uint32_t endTime = 1;
+uint32_t roverTime;
 uint8_t my_freq = 1;
 uint32_t lastActivity;
 uint32_t resetPeriod = 250;
@@ -132,13 +104,11 @@ String file2;
 ////////////////////////////////////////////////////////////////////////////////////
 void setup() {
   // DEBUG monitoring
-  //Serial.begin(2000000);
+  Serial.begin(2000000);
   delay(1000);
-  //Serial.println(F("### DW1000-arduino-ranging-anchor ###"));
   // initialize the driver
   DW1000.begin(PIN_IRQ, PIN_RST);
   DW1000.select(PIN_SS);
-  //  Serial.println(F("DW1000 initialized ..."));
   // general configuration
   DW1000.newConfiguration();
   DW1000.setDefaults();
@@ -173,16 +143,11 @@ void setup() {
   SPI.setClockDivider(SPI_CLOCK_DIV2);
 
   //INITIAL SET-UP (SERIAL)__________________________________________________
-  Serial.begin(2000000);
-  // while (!Serial) {
-  ; // wait for serial port to connect. Needed for native USB port only
-  //  }
 
   Serial.print("Initializing SD card...");
 
   if (!SD.begin(PB12)) {
     Serial.println("initialization failed!");
-    while (1);
   }
   Serial.println("initialization done.");
   int i = 1;
@@ -215,9 +180,6 @@ void setup() {
   //INITIAL SET-UP (WIRE)_____________________________________________________
   // Initialise I2C communication
   Wire.begin();
-  // Initialise Serial Communication, set baud rate = 9600
-  // Serial.begin(2000000);
-  // delay(1000); // 1 second to boot-up
 
   //ENVIRONMENTAL SENSOR_____________________________________________________
   // Start I2C transmission
@@ -232,10 +194,6 @@ void setup() {
 
   //ACCELEROMETER SENSOR____________________________________________________
   // Initialise I2C communication as MASTER
-  // Wire.begin();
-  // Initialise Serial Communication, set baud rate = 9600
-  // Serial.begin(2000000);
-  // delay(1000);
 
   // Start I2C Transmission
   Wire.beginTransmission(AddrH3L);
@@ -258,7 +216,6 @@ void setup() {
 
   startTime = millis();
   endTime = 1200000 + startTime;//20min
-
 }
 
 
@@ -520,7 +477,6 @@ void transmitPoll() {//transmits first ping to node
   data[0] = POLL;
   DW1000.setData(data, LEN_DATA);
   DW1000.startTransmit();
-  //  Serial.println("Send Poll");
 }
 
 void transmitRange() {//transmits second ping to node
@@ -535,7 +491,6 @@ void transmitRange() {//transmits second ping to node
   timeRangeSent.getTimestamp(data + 11);
   DW1000.setData(data, LEN_DATA);
   DW1000.startTransmit();
-  //Serial.print("Expect RANGE to be sent @ "); Serial.println(timeRangeSent.getAsFloat());
 }
 
 void transmitPollAck() {//first response to sender
@@ -581,29 +536,29 @@ void receiver() {//receive signal
   DW1000.startReceive();
 }
 
-void sleep_mode(){
-    DW1000.deepSleep();
-      //low power stm32
-      RTClock rt(RTCSEL_LSE);
-      long int alarmDelay = 300;//seconds in sleep
-      //long int alarmDelay = 20;//seconds in sleep
-      
-   //   Serial.println("Goto Sleep");
-      sleepAndWakeUp(STANDBY, &rt, alarmDelay);
+void sleep_mode() {
+  DW1000.deepSleep();
+  //low power stm32
+  RTClock rt(RTCSEL_LSE);
+  long int alarmDelay = 300;//seconds in sleep
+  //long int alarmDelay = 20;//seconds in sleep
+
+  //   Serial.println("Goto Sleep");
+  sleepAndWakeUp(STANDBY, &rt, alarmDelay);
   //  delay(10000);
-   //   Serial.println("Wake up");
-      //wakeup dwm1000
-      DW1000.spiWakeup();
-      DW1000.begin(PIN_IRQ, PIN_RST);
-      DW1000.select(PIN_SS);
-      DW1000.newConfiguration();
-      DW1000.setDefaults();
-      DW1000.setDeviceAddress(1);
-      DW1000.setNetworkId(10);
-      DW1000.enableMode(DW1000.MODE_LONGDATA_RANGE_ACCURACY, 1);//changed
-      DW1000.commitConfiguration();
-      endTime = millis()+300000;//add 5 min
-     // endTime = millis()+20000;//add 20 sec
+  //   Serial.println("Wake up");
+  //wakeup dwm1000
+  DW1000.spiWakeup();
+  DW1000.begin(PIN_IRQ, PIN_RST);
+  DW1000.select(PIN_SS);
+  DW1000.newConfiguration();
+  DW1000.setDefaults();
+  DW1000.setDeviceAddress(1);
+  DW1000.setNetworkId(10);
+  DW1000.enableMode(DW1000.MODE_LONGDATA_RANGE_ACCURACY, 1);//changed
+  DW1000.commitConfiguration();
+  endTime = millis() + 300000; //add 5 min
+  // endTime = millis()+20000;//add 20 sec
 }
 /*
    RANGING ALGORITHMS
@@ -663,7 +618,6 @@ void loop() {
     byte msgId = data[0];
     if (msgId == POLL) {//take timestamp
       DW1000.getTransmitTimestamp(timePollSent);
-      //Serial.print("Sent POLL @ "); Serial.println(timePollSent.getAsFloat());
     } if (msgId == RANGE) {//take timestamp
       DW1000.getTransmitTimestamp(timeRangeSent);
       noteActivity();
@@ -680,16 +634,28 @@ void loop() {
     DW1000.getData(data, LEN_DATA);
     targetNum = data[16];
     byte msgId = data[0];
-    //    Serial.println(data[0]);
-    //    Serial.println(msgId);
 
     /////////////////////adding low power stuff here remove if not working
     if (msgId == INITIALIZATION) {
       initialized = true;
       startTime = millis();
-  //    endTime = 10000 + startTime;//10 sec
+      //    endTime = 10000 + startTime;//10 sec
+      
+      memcpy(&roverTime, data + 1, 4);
       endTime = 1200000 + startTime;//20min
-      Serial.print("Initialized for ranging");
+      SPI.setModule (2);  //SPI port 2
+      myFile = SD.open(file2, FILE_WRITE);
+      //if (myFile) {
+      myFile.print("Rover time at pod intialization[ms]:");
+      myFile.print("\t");
+      myFile.println(roverTime);
+
+      // close the file:
+      myFile.close();
+      SPI.setModule (1);  //SPI port 2
+      //   }
+      Serial.print("Initialized for ranging ");
+      Serial.println(roverTime);
       expectedMsgId = POLL;
     }
     /*
@@ -772,24 +738,13 @@ void loop() {
           computeRangeAsymmetric(); // CHOSEN RANGING ALGORITHM
           data[17] = targetNum;
           data[16] = myNum;
-          //Serial.print("Target is ");Serial.print(data[17]);Serial.print(" Return is ");Serial.println(data[16]);
           transmitRangeReport(timeComputedRange.getAsMeters());//change .getAsMircoSeconds() to .getAsMeters()
           float distance = timeComputedRange.getAsMeters();
-          // Serial.print("Range: "); Serial.print(distance); Serial.print(" m");
-          //  Serial.print("\t Sampling: "); Serial.print(samplingRate); Serial.println(" Hz");
-          // update sampling rate (each second)
-          // successRangingCount++;
-          //if (curMillis - rangingCountPeriod > 1000) {
-          //  samplingRate = (1000.0f * successRangingCount) / (curMillis - rangingCountPeriod);
-          //  rangingCountPeriod = curMillis;
-          // successRangingCount = 0;
-          // }
         }
         else {// if(protocolFailed && data[17] == myNum && data[16] == targetNum) {
           if ( data[17] == myNum && (data[18] == 255 || data[18] == myNum)) {
             data[17] = targetNum;
             data[16] = myNum;
-            //Serial.print("Target is ");Serial.print(data[17]);Serial.print(" Return is ");Serial.println(data[16]);
             transmitRangeFailed();
           }
         }
