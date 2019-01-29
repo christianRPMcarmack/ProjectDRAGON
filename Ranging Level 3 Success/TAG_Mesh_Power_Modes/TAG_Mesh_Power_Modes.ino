@@ -23,6 +23,8 @@ const uint8_t PIN_SS = SS; // spi select pin
 #define RANGE 2
 #define RANGE_REPORT 3
 #define INITIALIZATION 4
+#define DATA_REQUEST 5
+#define DATA_REQUEST_LAST_SEND 6
 #define RANGE_FAILED 255
 // message flow state
 volatile byte expectedMsgId = POLL_ACK;
@@ -44,7 +46,7 @@ volatile byte nextHop;
 byte data[LEN_DATA];
 // watchdog and reset period
 uint32_t lastActivity;
-uint32_t resetPeriod = 100;//250;
+uint32_t resetPeriod = 50;//250;
 // reply times (same on both sides for symm. ranging)
 uint16_t replyDelayTimeUS = 3000;
 byte serialAnswer;
@@ -52,7 +54,8 @@ byte dumpChar;
 volatile int numReceive = 1;
 volatile uint8_t numTimeOut = 0;
 volatile uint8_t serialCount = 0;
-
+byte serialState = 0;
+int numMeasure = 0;
 void setup() {
   // DEBUG monitoring
   Serial.begin(2000000);//increased serial speed to attempt speeding things up. will haved to test what rover can handle
@@ -65,7 +68,8 @@ void setup() {
   DW1000.setDefaults();
   DW1000.setDeviceAddress(2);//not sure what this does currently
   DW1000.setNetworkId(10);
-  DW1000.enableMode(DW1000.MODE_LONGDATA_RANGE_ACCURACY, 1);//changed
+  //DW1000.enableMode(DW1000.MODE_LONGDATA_RANGE_ACCURACY, 1);//slower long range 110 kbps
+  DW1000.enableMode(DW1000.MODE_LONGDATA_FAST_ACCURACY, 1);//faster long range 6.8 Mbps
   DW1000.commitConfiguration();
   // Serial.println(F("Committed configuration ..."));
   // DEBUG chip info and registers pretty printed
@@ -99,14 +103,14 @@ void resetInactive() {//times out if more than 250 ms has passed since last acti
   //  Serial.println("Reset");
   numTimeOut++;
   if (data[18] == myNum) {
-    if (numTimeOut > 3) {//change back to 3 after error testing
+    if (numTimeOut > 3 + numMeasure / 10) {//change back to 3 after error testing
       serialInput = false;
       numTimeOut = 0;
       numReceive = 1;
       Serial.print("Timed out for link from "); Serial.print(targetNum); Serial.print(" to "); Serial.println(data[18]);
     }
   } else {
-    if (numTimeOut > 3) {//change back to 2 after error testing
+    if (numTimeOut > 3 + numMeasure / 10) {//change back to 2 after error testing
       serialInput = false;
       numTimeOut = 0;
       numReceive = 1;
@@ -164,6 +168,22 @@ void transmitInitialization() {//initialize pods to set timestamps
   // Serial.println(roverTime);
   data[0] = POLL;
 }
+/*
+void transmitEnviro() {//initialize pods to set timestamps
+  //serialInput = false;
+  DW1000.newTransmit();
+  DW1000.setDefaults();
+  data[0] = DATA_REQUEST;
+  uint32_t roverTime = millis();
+  //  Serial.println(roverTime);
+  memcpy(data + 1, &roverTime, 4);
+  DW1000.setData(data, LEN_DATA);
+  DW1000.startTransmit();
+  Serial.println("Initializing Pods");
+  // Serial.println(roverTime);
+  data[0] = POLL;
+}
+*/
 void receiver() {//receive transmit from nodes
   DW1000.newReceive();
   DW1000.setDefaults();
@@ -172,68 +192,111 @@ void receiver() {//receive transmit from nodes
   DW1000.startReceive();
 }
 
+void readChar (byte initialVal) {//, byte tar1, byte tar2, int num) {
+  byte tempVal = 0;
+  byte currentVal = 0;
+  currentVal = initialVal;
+
+  while (1) {
+    tempVal += currentVal;
+    currentVal = Serial.read();
+    if (currentVal == 32) {
+      break;
+    } else {
+      tempVal *= 10;
+    }
+    currentVal -= 48;
+  }
+  targetNum = tempVal;
+  tempVal = 0;
+  currentVal = 0;
+  while (1) {
+    tempVal += currentVal;
+    currentVal = Serial.read();
+    if (currentVal == 32) {
+      break;
+    } else {
+      tempVal *= 10;
+    }
+    currentVal -= 48;
+  }
+  nextHop = tempVal;
+  tempVal = 0;
+  currentVal = 0;
+  int numVal = 0;
+  while (1) {
+    numVal += (int) currentVal;
+    currentVal = Serial.read();
+    if (currentVal == 32) {
+      while (Serial.available()) {
+      dumpChar  = Serial.read();
+      }
+    }
+    if (currentVal == 68) {
+      serialState = 3;
+      while (Serial.available()) {
+      dumpChar  = Serial.read();
+      }
+    }
+    if (currentVal == 10 || !Serial.available()) {
+      break;
+    }
+        numVal *= 10;
+    currentVal -= 48;
+  }
+  numMeasure = numVal;
+}
+
+
 void handleSerialInput() {//handle serial inputs
-  // Serial.println("Ready for input");
-  while (Serial.available()) {
-    //  Serial.println("Reading Input");
+  if (Serial.available()) {
     serialEnd = true;
     serialAnswer = Serial.read();
     //add decifierng of serial read
-    if (!dump) {
-      if (serialAnswer == 73 && serialCount == 0)
-      {
-        data[0] = INITIALIZATION;
-        dump = true;
-        serialCount = 2;
+    if (serialAnswer == 73)
+    {
+      data[0] = INITIALIZATION;
+      while (Serial.available()) {
+        dumpChar  = Serial.read();//read rest of serial input and discard extra chars
+
       }
-      if ( serialAnswer != (10) && serialCount == 1) {//ignore enter key and reads in second character
-        nextHop = serialAnswer - 48;//convert ascii to number
-        data[18] = nextHop;
-        serialCount++;
-        resetPeriod = 100;//500;
-        expectedMsgId = RANGE_REPORT;//response should be distance from pod to pod
-        dump = true;
+      serialState = 1;
+    } else {
+      serialAnswer -= 48;
+      readChar(serialAnswer);//, targetNum, nextHop, numMeasure);
+      if (numMeasure != 0) {
+      serialState = 2;
       }
-      if ( serialAnswer != (10) && serialCount == 0) {//ignore enter key and reads in first character
-        targetNum = serialAnswer - 48;//convert ascii to number
+    }
+    if (serialState !=0) {
+      if (serialState == 1) {
+        data[17] = 255;
+        data[18] = 255;
+        transmitInitialization();
+        serialInput = false;
+        sentAck = false;
+      }
+      if (serialState == 2) {
         data[16] = myNum;
         data[17] = targetNum;
-        serialCount++;
+        data[18] = nextHop;
+        numTimeOut = 0;
+        transmitPoll();
+        serialInput = true;
       }
+      if (serialState == 3) {
+        data[17] = 255;
+        data[18] = 255;
+        numTimeOut = 0;
+        transmitEnviro();
+        serialInput = false;
+        sentAck = false;
+      }
+      serialState = 0;
+      noteActivity();
+    } else {
+      Serial.println("Error check input");
     }
-    if (dump) {
-      dumpChar  = Serial.read();//read rest of serial input and discard extra chars
-    }
-  }
-  if (serialEnd && serialCount != 0) {
-    //  Serial.println("Hung up here");
-    if (serialCount < 2 && data[0] != INITIALIZATION) {// if only 1 char was input
-      nextHop = 255;
-      data[18] = 255;
-      //data[0] = POLL
-      resetPeriod = 100;//250;
-      expectedMsgId = POLL_ACK;
-      // Serial.println("1 input");
-    }
-    serialCount = 0;
-    serialInput = true;
-    serialEnd = false;
-    dump = false;
-    //  Serial.println(data[0]);
-    // Serial.print("Next hop is ");Serial.println(data[18]);
-    if (data[0] == INITIALIZATION) {
-      data[17] = 255;
-      data[18] = 255;
-      transmitInitialization();
-      serialInput = false;
-      sentAck = false;
-      return;
-    }
-    if (data[0] != INITIALIZATION) {
-      transmitPoll();
-      //      Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.print(data[16]); Serial.print(" Next hop is "); Serial.println(data[18]);
-    }
-    noteActivity();
   }
 }
 
@@ -294,10 +357,11 @@ void loop() {
         Serial.print(millis()); Serial.print(" "); Serial.print(targetNum); Serial.print(" "); Serial.print(nextHop); Serial.print(" "); Serial.println(curRange, 3); //Serial.print(" measure count is ");Serial.println(numReceive);
 
         //  Serial.println(curRange,3);
-        if (numReceive == 10) {//change back to 30 after error testing
+        if (numReceive >= numMeasure) {//change back to 30 after error testing
           serialInput = false;
           handleSerialInput();
           numReceive = 1;
+          numMeasure = 0;
           return;
         }
         else {

@@ -29,12 +29,16 @@ const uint8_t PIN_SS = SS; // spi select pin
 #define RANGE 2
 #define RANGE_REPORT 3
 #define INITIALIZATION 4
+#define DATA_REQUEST 5
+#define DATA_REQUEST_LAST_SEND 6
+#define DATA_COMPLETE 7
 #define RANGE_FAILED 255
 // message flow state
 volatile byte expectedMsgId = INITIALIZATION;
 // message sent/received state
 volatile boolean sentAck = false;
 volatile boolean receivedAck = false;
+boolean enviroTransfer = false;
 boolean file_true = false;
 // protocol error state
 boolean protocolFailed = false;
@@ -50,10 +54,14 @@ DW1000Time timeRangeReceived;
 DW1000Time timeComputedRange;
 // data buffer
 #define LEN_DATA 19
+#define LEN_Enviro 101
+int sdPointer = 0;
+int sdPointerOld = 0;
 byte myNum = 0;
 volatile byte returnNum;
 volatile byte targetNum;
 byte data[LEN_DATA];
+byte dataEnviro[LEN_Enviro];
 // watchdog and reset period
 uint32_t startTime = 0;
 uint32_t endTime = 1;
@@ -114,7 +122,7 @@ void setup() {
   DW1000.setDefaults();
   DW1000.setDeviceAddress(1);
   DW1000.setNetworkId(10);
-//DW1000.enableMode(DW1000.MODE_LONGDATA_RANGE_ACCURACY, 1);//slower long range 110 kbps
+  //DW1000.enableMode(DW1000.MODE_LONGDATA_RANGE_ACCURACY, 1);//slower long range 110 kbps
   DW1000.enableMode(DW1000.MODE_LONGDATA_FAST_ACCURACY, 1);//faster long range 6.8 Mbps
   DW1000.commitConfiguration();
   // Serial.println(F("Committed configuration ..."));
@@ -435,6 +443,7 @@ void  takeEnviro() {
 
     // close the file:
     myFile.close();
+  //  Serial.println("file okay");
   } else {
     // if the file did not open, print an error:
     Serial.println("error opening file");
@@ -474,6 +483,13 @@ void handleSent() {
 void handleReceived() {
   // status change on received success
   receivedAck = true;
+}
+
+void transmitEnviro() {
+  DW1000.newTransmit();
+  DW1000.setDefaults();
+  DW1000.setData(dataEnviro, LEN_Enviro);
+  DW1000.startTransmit();
 }
 
 void transmitPoll() {//transmits first ping to node
@@ -560,7 +576,7 @@ void sleep_mode() {
   DW1000.setDefaults();
   DW1000.setDeviceAddress(1);
   DW1000.setNetworkId(10);
-//DW1000.enableMode(DW1000.MODE_LONGDATA_RANGE_ACCURACY, 1);//slower long range 110 kbps
+  //DW1000.enableMode(DW1000.MODE_LONGDATA_RANGE_ACCURACY, 1);//slower long range 110 kbps
   DW1000.enableMode(DW1000.MODE_LONGDATA_FAST_ACCURACY, 1);//faster long range 6.8 Mbps
   DW1000.commitConfiguration();
   endTime = millis() + 300000; //add 5 min
@@ -646,7 +662,7 @@ void loop() {
       initialized = true;
       startTime = millis();
       //    endTime = 10000 + startTime;//10 sec
-      
+
       memcpy(&roverTime, data + 1, 4);
       endTime = 1200000 + startTime;//20min
       SPI.setModule (2);  //SPI port 2
@@ -660,8 +676,8 @@ void loop() {
       myFile.close();
       SPI.setModule (1);  //SPI port 1
       //   }
-      Serial.print("Initialized for ranging ");
-      Serial.println(roverTime);
+      //   Serial.print("Initialized for ranging ");
+      //  Serial.println(roverTime);
       expectedMsgId = POLL;
     }
     /*
@@ -675,6 +691,71 @@ void loop() {
     */
     //  Serial.println(initialized);
     if (initialized == true) {
+      ////////enviro transfer
+      if (msgId ==  DATA_REQUEST) { // enviroTransfer == true) {
+        // Serial.println("Getting ready to print file");
+        enviroTransfer = true;
+        SPI.setModule (2);  //SPI port 2
+        myFile = SD.open(file2);
+        if (myFile) {
+          dataEnviro[0] = DATA_REQUEST;
+          if (sdPointer != 0) {
+            myFile.seek(sdPointer);
+          }
+          for (int i = 1; i < LEN_Enviro; i++) {
+            if ( myFile.available()) {
+              dataEnviro[i] = myFile.read();
+                Serial.write(dataEnviro[i]);
+            }
+            else {
+              dataEnviro[0] = DATA_COMPLETE;
+              Serial.println("Transfer Complete");
+              break;
+            }
+          }
+        }
+        if (dataEnviro[0] == DATA_COMPLETE) {
+          myFile.close();
+          sdPointerOld = 0;
+          sdPointer = 0;
+    //      SD.remove(file2);
+        }
+        else {
+          sdPointerOld = sdPointer;
+          sdPointer = myFile.position();
+          myFile.close();
+        }
+    //    Serial.println(sdPointer);
+        SPI.setModule (1);  //SPI port 2
+        transmitEnviro();
+        noteActivity();
+      }
+
+
+      if (msgId == DATA_REQUEST_LAST_SEND) {
+      //  Serial.println("RESENDING");
+        enviroTransfer = true;
+        SPI.setModule (2);  //SPI port 2
+        myFile = SD.open(file2);
+
+        dataEnviro[0] = DATA_REQUEST;
+        myFile.seek(sdPointerOld);
+        for (int i = 1; i < LEN_Enviro; i++) {
+          if (myFile) {
+            if ( myFile.available()) {
+              dataEnviro[i] = myFile.read();
+    //          Serial.write(dataEnviro[i]);
+            }
+          }
+        }
+        myFile.close();
+        //   Serial.println(sdPointer);
+        SPI.setModule (1);  //SPI port 2
+        transmitEnviro();
+        noteActivity();
+      }
+
+      /////////
       if (data[18] != 255 && data[18] != myNum) {//runs if pod to pod distance is requested
         if (msgId == POLL && data[17] == myNum ) {
           returnNum = data[16];

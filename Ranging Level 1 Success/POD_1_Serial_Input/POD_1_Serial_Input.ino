@@ -1,3 +1,11 @@
+// Author: Ivan Yurkin
+//Base Ranging Code obtained from https://github.com/thotro/arduino-dw1000
+//Serial Handler and node identification was added on top of base code
+//Tag code is used on the rover beacon to allow the rover to function as a mobile router to obtain ranging measurements to up
+//to 10 nodes 
+//Tag code waits for serial input ranging from 0-9 for pods 1-10. Index starts at 0. Then tag takes 30 measurements and reports 
+//them or times out 3 times before waiting for new serial input
+
 /*
    Copyright (c) 2015 by Thomas Trojer <thomas@trojer.net>
    Decawave DW1000 library for arduino.
@@ -135,7 +143,7 @@ void handleReceived() {
   receivedAck = true;
 }
 
-void transmitPollAck() {
+void transmitPollAck() {//transmit first ping back to sender
   DW1000.newTransmit();
   DW1000.setDefaults();
   data[0] = POLL_ACK;
@@ -148,7 +156,7 @@ void transmitPollAck() {
   DW1000.startTransmit();
 }
 
-void transmitRangeReport(float curRange) {
+void transmitRangeReport(float curRange) {//transmit calculated range back to sender
   DW1000.newTransmit();
   DW1000.setDefaults();
   data[0] = RANGE_REPORT;
@@ -160,7 +168,7 @@ void transmitRangeReport(float curRange) {
   DW1000.startTransmit();
 }
 
-void transmitRangeFailed() {
+void transmitRangeFailed() {//transmit ranging failure
   DW1000.newTransmit();
   DW1000.setDefaults();
   data[0] = RANGE_FAILED;
@@ -170,7 +178,7 @@ void transmitRangeFailed() {
   DW1000.startTransmit();
 }
 
-void receiver() {
+void receiver() {//receive signal
   DW1000.newReceive();
   DW1000.setDefaults();
   // so we don't need to restart the receiver manually

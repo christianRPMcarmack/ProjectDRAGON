@@ -1,5 +1,6 @@
 // Author: Ivan Yurkin
 //Base Ranging Code obtained from https://github.com/thotro/arduino-dw1000
+//Code development was also inspired by the COHIRNT lab to jumpstart desgin
 //Serial Handler and node identification was added on top of base code
 //Tag code is used on the rover beacon to allow the rover to function as a mobile router to obtain ranging measurements to up
 //to 10 nodes 
@@ -42,7 +43,7 @@
 
 // connection pins
 const uint8_t PIN_RST = 9; // reset pin
-const uint8_t PIN_IRQ = PA3; // irq pin
+const uint8_t PIN_IRQ = PB0; // irq pin
 const uint8_t PIN_SS = SS; // spi select pin
 
 // messages used in the ranging protocol
@@ -135,7 +136,7 @@ void resetInactive() {//times out if more than 250 ms has passed since last acti
       Serial.print("Timed out for link from "); Serial.print(targetNum); Serial.print(" to "); Serial.println(data[18]);
     }
   } else {
-    if (numTimeOut > 1) {//change back to 1 after error testing
+    if (numTimeOut > 2) {//change back to 1 after error testing
       serialInput = false;
       numTimeOut = 0;
       numReceive = 1;
@@ -195,7 +196,7 @@ void handleSerialInput() {//handle serial inputs
       nextHop = serialAnswer - 48;//convert ascii to number 
       data[18] = nextHop;
       serialCount++;
-      resetPeriod = 1000;
+      resetPeriod = 500;
       expectedMsgId = RANGE_REPORT;//response should be distance from pod to pod
     }
     if ( serialAnswer != (10) && serialCount == 0) {//ignore enter key and reads in first character
@@ -315,8 +316,8 @@ void loop() {
         memcpy(&curRange, data + 1, 4);
         //if (data[18] == 255) {
         // Serial.print("Next hop is ");Serial.println(data[18]);
-        //Serial.print("Time [ms]: "); Serial.print(millis()); Serial.print(" Range from "); Serial.print(targetNum); Serial.print(" to "); Serial.print(data[18]); Serial.print(" : "); Serial.println(curRange); //Serial.print(" measure count is ");Serial.println(numReceive);
-        Serial.println(curRange);
+        Serial.print("Time [ms]: "); Serial.print(millis()); Serial.print(" Range from "); Serial.print(targetNum); Serial.print(" to "); Serial.print(data[18]); Serial.print(" : "); Serial.println(curRange); //Serial.print(" measure count is ");Serial.println(numReceive);
+        //Serial.println(curRange);
         //}//transmitPoll();
         if (numReceive == 30) {//change back to 30 after error testing
           serialInput = false;

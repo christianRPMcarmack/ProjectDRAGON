@@ -1,3 +1,14 @@
+// Author: Ivan Yurkin
+//Base Ranging Code obtained from https://github.com/thotro/arduino-dw1000
+//Serial Handler and node identification was added on top of base code
+//Tag code is used on the rover beacon to allow the rover to function as a mobile router to obtain ranging measurements to up
+//to 10 nodes 
+//Tag code waits for serial input ranging from 0-9 for pods 1-10. Index starts at 0. Then tag takes 30 measurements and reports 
+//them or times out 3 times before waiting for new serial input
+
+
+
+
 /*
   Copyright (c) 2015 by Thomas Trojer <thomas@trojer.net>
   Decawave DW1000 library for arduino.
@@ -7,6 +18,7 @@
   You may obtain a copy of the License at
 
   http://www.apache.org/licenses/LICENSE-2.0
+  
 
   Unless required by applicable law or agreed to in writing, software
   distributed under the License is distributed on an "AS IS" BASIS,
@@ -106,19 +118,19 @@ void setup() {
   noteActivity();
 }
 
-void noteActivity() {
+void noteActivity() {//updates last activity time for timeouts
   // update activity timestamp, so that we do not reach "resetPeriod"
   lastActivity = millis();
 }
 
-void resetInactive() {
+void resetInactive() {//times out if more than 250 ms has passed since last activity
   // tag sends POLL and listens for POLL_ACK
   expectedMsgId = POLL_ACK;
   transmitPoll();
   noteActivity();
   //  Serial.println("Reset");
   numTimeOut++;
-  if (numTimeOut > 3000) {//change back to 3 after error testing
+  if (numTimeOut > 3) {//change back to 3 after error testing
     serialInput = false;
     numTimeOut = 0;
     Serial.print("Timed out for link from ");Serial.print(data[17]); Serial.print(" to "); Serial.println(data[16]);
@@ -135,7 +147,7 @@ void handleReceived() {
   receivedAck = true;
 }
 
-void transmitPoll() {
+void transmitPoll() {//transmits first ping to node
   DW1000.newTransmit();
   DW1000.setDefaults();
   data[0] = POLL;
@@ -144,14 +156,14 @@ void transmitPoll() {
   //  Serial.println("Send Poll");
 }
 
-void transmitRange() {
+void transmitRange() {//transmits second ping to node
   DW1000.newTransmit();
   DW1000.setDefaults();
   data[0] = RANGE;
   // delay sending the message and remember expected future sent timestamp
   DW1000Time deltaTime = DW1000Time(replyDelayTimeUS, DW1000Time::MICROSECONDS);
   timeRangeSent = DW1000.setDelay(deltaTime);
-  timePollSent.getTimestamp(data + 1);
+  timePollSent.getTimestamp(data + 1);//transmits timestamps for ranging calculations
   timePollAckReceived.getTimestamp(data + 6);
   timeRangeSent.getTimestamp(data + 11);
   DW1000.setData(data, LEN_DATA);
@@ -159,7 +171,7 @@ void transmitRange() {
   //Serial.print("Expect RANGE to be sent @ "); Serial.println(timeRangeSent.getAsFloat());
 }
 
-void receiver() {
+void receiver() {//receive transmit from nodes
   DW1000.newReceive();
   DW1000.setDefaults();
   // so we don't need to restart the receiver manually
@@ -167,29 +179,29 @@ void receiver() {
   DW1000.startReceive();
 }
 
-void handleSerialInput() {
+void handleSerialInput() {//handle serial inputs
   while (Serial.available()) {
     serialEnd = true;
     serialAnswer = Serial.read();
     //add decifierng of serial read
-    if ( serialAnswer != (10) && serialCount == 1) {
+    if ( serialAnswer != (10) && serialCount == 1) {//ignore enter key and reads in second character
       nextHop = serialAnswer - 48;
       data[18] = nextHop;
       serialCount++;
     }
-    if ( serialAnswer != (10) && serialCount == 0) {
+    if ( serialAnswer != (10) && serialCount == 0) {//ignore enter key and reads in first character
       targetNum = serialAnswer - 48;
       data[16] = myNum;
       data[17] = targetNum;
       serialCount++;
     } 
     
-    else {
+    else {//ignore characters after the first 2
       dumpChar  = Serial.read();
     }
   }
   
-    if (serialEnd && serialCount != 0) {
+    if (serialEnd && serialCount != 0) {//sets return if needed
       if (serialCount < 2) {
         data[18] = 255;
       }
@@ -253,10 +265,10 @@ void loop() {
         expectedMsgId = POLL_ACK;
         float curRange;
         memcpy(&curRange, data + 1, 4);
-        if (data[18] == 255) {
+        //if (data[18] == 255) {
         Serial.print("Time [ms]: "); Serial.print(millis()); Serial.print(" Range from "); Serial.print(data[17]); Serial.print(" to "); Serial.print(data[16]);Serial.print(" : ");Serial.println(curRange);//Serial.print(" measure count is ");Serial.println(numReceive);
-        }//transmitPoll();
-        if (numReceive == 3000) {//change back to 30 after error testing
+        //}//transmitPoll();
+        if (numReceive == 30) {//change back to 30 after error testing
           serialInput = false;
           handleSerialInput();
           numReceive = 1;

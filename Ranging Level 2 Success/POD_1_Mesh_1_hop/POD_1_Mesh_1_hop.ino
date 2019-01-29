@@ -1,5 +1,6 @@
 // Author: Ivan Yurkin
 //Base Ranging Code obtained from https://github.com/thotro/arduino-dw1000
+//Code development was also inspired by the COHIRNT lab to jumpstart desgin
 //Serial Handler and node identification was added on top of base code
 //Tag code is used on the rover beacon to allow the rover to function as a mobile router to obtain ranging measurements to up
 //to 10 nodes 
@@ -41,7 +42,7 @@
 
 // connection pins
 const uint8_t PIN_RST = 9; // reset pin
-const uint8_t PIN_IRQ = PA3; // irq pin
+const uint8_t PIN_IRQ = PB0; // irq pin
 const uint8_t PIN_SS = SS; // spi select pin
 
 // messages used in the ranging protocol
