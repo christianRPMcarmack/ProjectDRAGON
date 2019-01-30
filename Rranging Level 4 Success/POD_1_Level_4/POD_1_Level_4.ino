@@ -390,33 +390,6 @@ void  takeEnviro() {
   zAccl_bin = data_H3L[5] << 8 | data_H3L[4];
   zAccl = (zAccl_bin >> 4) * 100 / 2048;
 
-  // OUTPUTS TO SERIAL MONITOR_______________________________________________________
-
-  // // TIME
-  //  time_since_turn_on = millis();
-  //  Serial.print(time_since_turn_on);
-  //  Serial.print("\t");
-  //
-  //  //DATA
-  /*
-    Serial.print(altitude,2);
-    Serial.print("\t");
-    Serial.print(pressure,2);
-    Serial.print("\t");
-    Serial.print(cTemp,2);
-    Serial.print("\t");
-    Serial.print(fTemp,2);
-    Serial.print("\t");
-    //
-    Serial.print(xAccl,2);
-    Serial.print("\t");
-    Serial.print(yAccl,2);
-    Serial.print("\t");
-    Serial.println(zAccl,2);
-    Serial.print("\n");
-  */
-  //  delay(500);
-
   // WRITE TO SD CARD_________________________________________________________________
   // Open the file.
   // NOTE: only one file can be open at a time, so you have to close this one before opening another.
@@ -443,7 +416,7 @@ void  takeEnviro() {
 
     // close the file:
     myFile.close();
-  //  Serial.println("file okay");
+    //  Serial.println("file okay");
   } else {
     // if the file did not open, print an error:
     Serial.println("error opening file");
@@ -692,59 +665,93 @@ void loop() {
     //  Serial.println(initialized);
     if (initialized == true) {
       ////////enviro transfer
-      if (msgId ==  DATA_REQUEST) { // enviroTransfer == true) {
+      if (msgId ==  DATA_COMPLETE && data[17] == myNum) {
+        memcpy(&roverTime, data + 1, 4);
+        SPI.setModule (2);  //SPI port 2
+        myFile = SD.open(file2, FILE_WRITE);
+        myFile.print("Rover time at pod intialization[ms]:");
+        myFile.print("\t");
+        myFile.println(roverTime);
+
+        // close the file:
+        myFile.close();
+        SPI.setModule (1);  //SPI port 1
+      }
+      if (msgId ==  DATA_REQUEST && data[1] == myNum) { // enviroTransfer == true) {
         // Serial.println("Getting ready to print file");
+        //  Serial.println(data[1]);
+        //  Serial.println(data[2]);
         enviroTransfer = true;
         SPI.setModule (2);  //SPI port 2
         myFile = SD.open(file2);
         if (myFile) {
           dataEnviro[0] = DATA_REQUEST;
+          dataEnviro[1] = data[2];
           if (sdPointer != 0) {
             myFile.seek(sdPointer);
           }
-          for (int i = 1; i < LEN_Enviro; i++) {
+          for (int i = 2; i < LEN_Enviro; i++) {
             if ( myFile.available()) {
               dataEnviro[i] = myFile.read();
-                Serial.write(dataEnviro[i]);
+              Serial.write(dataEnviro[i]);
             }
             else {
               dataEnviro[0] = DATA_COMPLETE;
-              Serial.println("Transfer Complete");
-              break;
+              dataEnviro[i] = 0;
+              //    break;
             }
           }
         }
         if (dataEnviro[0] == DATA_COMPLETE) {
+          // Serial.println("Transfer Complete");
           myFile.close();
           sdPointerOld = 0;
           sdPointer = 0;
-    //      SD.remove(file2);
+          SD.remove(file2);
+          myFile = SD.open(file2, FILE_WRITE);
+          myFile.print("Time [ms]");
+          myFile.print("\t");
+          myFile.print("Altitude [m]");
+          myFile.print("\t");
+          myFile.print("Pressure [KPa]");
+          myFile.print("\t");
+          myFile.print("Temp [C]");
+          myFile.print("\t");
+          myFile.print("Temp [F]");
+          myFile.print("\t");
+          myFile.print("xAccl [g]");
+          myFile.print("\t");
+          myFile.print("yAccl [g]");
+          myFile.print("\t");
+          myFile.println("zAccl [g]");
+          myFile.close();
         }
         else {
           sdPointerOld = sdPointer;
           sdPointer = myFile.position();
           myFile.close();
         }
-    //    Serial.println(sdPointer);
+        //    Serial.println(sdPointer);
         SPI.setModule (1);  //SPI port 2
         transmitEnviro();
         noteActivity();
       }
 
 
-      if (msgId == DATA_REQUEST_LAST_SEND) {
-      //  Serial.println("RESENDING");
+      if (msgId == DATA_REQUEST_LAST_SEND && data[1] == myNum) {
+        //  Serial.println("RESENDING");
         enviroTransfer = true;
         SPI.setModule (2);  //SPI port 2
         myFile = SD.open(file2);
 
         dataEnviro[0] = DATA_REQUEST;
+        dataEnviro[1] = data[2];
         myFile.seek(sdPointerOld);
-        for (int i = 1; i < LEN_Enviro; i++) {
+        for (int i = 2; i < LEN_Enviro; i++) {
           if (myFile) {
             if ( myFile.available()) {
               dataEnviro[i] = myFile.read();
-    //          Serial.write(dataEnviro[i]);
+              //          Serial.write(dataEnviro[i]);
             }
           }
         }

@@ -38,7 +38,7 @@ volatile boolean dump = false;
 // timestamps to remember
 DW1000Time timePollSent;
 DW1000Time timePollAckReceived;
-DW1000Time timeRangeSent; 
+DW1000Time timeRangeSent;
 // data buffer
 #define LEN_DATA 19//
 #define LEN_Enviro 101
@@ -175,10 +175,12 @@ void transmitInitialization() {//initialize pods to set timestamps
 
 void transmitEnviro() {//initialize pods to set timestamps
   //serialInput = false;
-  Serial.println("Sending Envrio Ping");
+  Serial.print("Sending Envrio Ping to "); Serial.println(targetNum);
   DW1000.newTransmit();
   DW1000.setDefaults();
   data[0] = DATA_REQUEST;
+  data[1] = targetNum;
+  data[2] = myNum;
   DW1000.setData(data, LEN_DATA);
   DW1000.startTransmit();
   noteActivity();
@@ -188,35 +190,44 @@ void transmitEnviro() {//initialize pods to set timestamps
   dataEnviro[0] = 0;
   dataCheck[0] = 0;
   while (1) {
-    if (Serial.available()){
+    if (Serial.available()) {
       dump = Serial.read();
-      while (Serial.available()){
-      dump = Serial.read();
+      while (Serial.available()) {
+        dump = Serial.read();
       }
       break;
     }
     if (millis() - lastActivity > 250 ) {
-    //  if (commTry > 100) {
-    //    break;
-    //  }
-   //   commTry++;
+      //  if (commTry > 100) {
+      //    break;
+      //  }
+      //   commTry++;
       DW1000.newTransmit();
       DW1000.setDefaults();
       data[0] = DATA_REQUEST_LAST_SEND;
+      data[1] = targetNum;
+      data[2] = myNum;
       DW1000.setData(data, LEN_DATA);
       DW1000.startTransmit();
- //     Serial.println("RESEND REQUEST");
+      //   Serial.println("RESEND REQUEST");
       noteActivity();
     }
 
     if (receivedAck) {
       if (check == 1) {
         DW1000.getData(dataCheck, LEN_Enviro);
-        check = 2;
+        //  Serial.println(dataCheck[1]);
+        if (dataCheck[1] == myNum) {
+          //   Serial.println("Check Check");
+          check = 2;
+        }
       }
       if (check == 0) {
         DW1000.getData(dataEnviro, LEN_Enviro);
-        check = 1;
+        //   Serial.println(dataEnviro[1]);
+        if (dataEnviro[1] == myNum) {
+          check = 1;
+        }
       }
 
       // Serial.println("Received Data");
@@ -228,245 +239,267 @@ void transmitEnviro() {//initialize pods to set timestamps
         DW1000.newTransmit();
         DW1000.setDefaults();
         data[0] = DATA_REQUEST_LAST_SEND;
+        data[1] = targetNum;
+        data[2] = myNum;
         DW1000.setData(data, LEN_DATA);
         DW1000.startTransmit();
       }
       if (check == 2) {
-              same = true;
-        for (int n = 1; n < LEN_Enviro; n++) {
+        //  Serial.println("Check CHeck");
+        same = true;
+        for (int n = 2; n < LEN_Enviro; n++) {
           if (dataEnviro[n] != dataCheck[n]) {
             same = false;
           }
         }
+        //     Serial.println("Check CHeck");
         if (!same) {
-     //     Serial.println("RESEND");
+          //     Serial.println("RESEND");
+          //  Serial.println("Stuck");
           DW1000.newTransmit();
           DW1000.setDefaults();
           data[0] = DATA_REQUEST_LAST_SEND;
+          data[1] = targetNum;
+          data[2] = myNum;
           DW1000.setData(data, LEN_DATA);
           DW1000.startTransmit();
 
         }
         else {
-          for (int i = 1; i < LEN_Enviro; i++) {
+          for (int i = 2; i < LEN_Enviro; i++) {
             Serial.write(dataEnviro[i]);
           }
+          //  Serial.println("Stuck");
           DW1000.newTransmit();
           DW1000.setDefaults();
           data[0] = DATA_REQUEST;
+          data[1] = targetNum;
+          data[2] = myNum;
           DW1000.setData(data, LEN_DATA);
           DW1000.startTransmit();
         }
         check = 0;
       }
       noteActivity();
-    } 
+    }
     if (check == 10) {
-            Serial.println("Transmission Complete");
-            break;
+      DW1000.newTransmit();
+      DW1000.setDefaults();
+      data[0] = DATA_COMPLETE;
+      data[16] = myNum;
+      data[17] = targetNum;
+      data[18] = nextHop;
+      uint32_t roverTime = millis();
+      //  Serial.println(roverTime);
+      memcpy(data + 1, &roverTime, 4);
+      DW1000.setData(data, LEN_DATA);
+      DW1000.startTransmit();
+      Serial.println(" ");
+      Serial.println("Transmission Complete");
+      break;
     }
   }
 }
-  void receiver() {//receive transmit from nodes
-    DW1000.newReceive();
-    DW1000.setDefaults();
-    // so we don't need to restart the receiver manually
-    DW1000.receivePermanently(true);
-    DW1000.startReceive();
+void receiver() {//receive transmit from nodes
+  DW1000.newReceive();
+  DW1000.setDefaults();
+  // so we don't need to restart the receiver manually
+  DW1000.receivePermanently(true);
+  DW1000.startReceive();
+}
+
+void readChar (byte initialVal) {//, byte tar1, byte tar2, int num) {
+  byte tempVal = 0;
+  byte currentVal = 0;
+  currentVal = initialVal;
+
+  while (1) {
+    tempVal += currentVal;
+    currentVal = Serial.read();
+    if (currentVal == 32) {
+      break;
+    } else {
+      tempVal *= 10;
+    }
+    currentVal -= 48;
   }
-
-  void readChar (byte initialVal) {//, byte tar1, byte tar2, int num) {
-    byte tempVal = 0;
-    byte currentVal = 0;
-    currentVal = initialVal;
-
-    while (1) {
-      tempVal += currentVal;
-      currentVal = Serial.read();
-      if (currentVal == 32) {
-        break;
-      } else {
-        tempVal *= 10;
-      }
-      currentVal -= 48;
+  targetNum = tempVal;
+  tempVal = 0;
+  currentVal = 0;
+  while (1) {
+    tempVal += currentVal;
+    currentVal = Serial.read();
+    if (currentVal == 32) {
+      break;
+    } else {
+      tempVal *= 10;
     }
-    targetNum = tempVal;
-    tempVal = 0;
-    currentVal = 0;
-    while (1) {
-      tempVal += currentVal;
-      currentVal = Serial.read();
-      if (currentVal == 32) {
-        break;
-      } else {
-        tempVal *= 10;
-      }
-      currentVal -= 48;
-    }
-    nextHop = tempVal;
-    tempVal = 0;
-    currentVal = 0;
-    int numVal = 0;
-    while (1) {
-      numVal += (int) currentVal;
-      currentVal = Serial.read();
-      if (currentVal == 32) {
-        while (Serial.available()) {
-          dumpChar  = Serial.read();
-        }
-      }
-      if (currentVal == 68) {
-        serialState = 3;
-        while (Serial.available()) {
-          dumpChar  = Serial.read();
-        }
-      }
-      if (currentVal == 10 || !Serial.available()) {
-        break;
-      }
-      numVal *= 10;
-      currentVal -= 48;
-    }
-    numMeasure = numVal;
+    currentVal -= 48;
   }
-
-
-  void handleSerialInput() {//handle serial inputs
-    if (Serial.available()) {
-      serialEnd = true;
-      serialAnswer = Serial.read();
-      //add decifierng of serial read
-      if (serialAnswer == 73)
-      {
-        data[0] = INITIALIZATION;
-        while (Serial.available()) {
-          dumpChar  = Serial.read();//read rest of serial input and discard extra chars
-
-        }
-        serialState = 1;
-      } else {
-        serialAnswer -= 48;
-        readChar(serialAnswer);//, targetNum, nextHop, numMeasure);
-        if (numMeasure != 0) {
-          serialState = 2;
-        }
+  nextHop = tempVal;
+  tempVal = 0;
+  currentVal = 0;
+  int numVal = 0;
+  while (1) {
+    numVal += (int) currentVal;
+    currentVal = Serial.read();
+    if (currentVal == 32) {
+      while (Serial.available()) {
+        dumpChar  = Serial.read();
       }
-      if (serialState != 0) {
-        if (serialState == 1) {
-          data[17] = 255;
-          data[18] = 255;
-          transmitInitialization();
-          serialInput = false;
-          sentAck = false;
-        }
-        if (serialState == 2) {
-          data[16] = myNum;
-          data[17] = targetNum;
-          data[18] = nextHop;
-          numTimeOut = 0;
-          transmitPoll();
-          serialInput = true;
-        }
-        if (serialState == 3) {
-          data[17] = 255;
-          data[18] = 255;
-          numTimeOut = 0;
-          transmitEnviro();
-          serialInput = false;
-          sentAck = false;
-        }
-        serialState = 0;
+    }
+    if (currentVal == 68) {
+      serialState = 3;
+      while (Serial.available()) {
+        dumpChar  = Serial.read();
+      }
+    }
+    if (currentVal == 10 || !Serial.available()) {
+      break;
+    }
+    numVal *= 10;
+    currentVal -= 48;
+  }
+  numMeasure = numVal;
+}
+
+
+void handleSerialInput() {//handle serial inputs
+  if (Serial.available()) {
+    serialEnd = true;
+    serialAnswer = Serial.read();
+    //add decifierng of serial read
+    if (serialAnswer == 73)
+    {
+      data[0] = INITIALIZATION;
+      while (Serial.available()) {
+        dumpChar  = Serial.read();//read rest of serial input and discard extra chars
+
+      }
+      serialState = 1;
+    } else {
+      serialAnswer -= 48;
+      readChar(serialAnswer);//, targetNum, nextHop, numMeasure);
+      if (numMeasure != 0) {
+        serialState = 2;
+      }
+    }
+    if (serialState != 0) {
+      if (serialState == 1) {
+        data[17] = 255;
+        data[18] = 255;
+        transmitInitialization();
+        serialInput = false;
+        sentAck = false;
+      }
+      if (serialState == 2) {
+        data[16] = myNum;
+        data[17] = targetNum;
+        data[18] = nextHop;
+        numTimeOut = 0;
+        transmitPoll();
+        serialInput = true;
+      }
+      if (serialState == 3) {
+        data[17] = 255;
+        data[18] = 255;
+        numTimeOut = 0;
+        transmitEnviro();
+        serialInput = false;
+        sentAck = false;
+      }
+      serialState = 0;
+      noteActivity();
+    } else {
+      Serial.println("Error check input");
+    }
+  }
+}
+
+void loop() {
+  if (serialInput) {
+    if (!sentAck && !receivedAck) {
+      // check if inactive
+      if (millis() - lastActivity > resetPeriod ) {
+        resetInactive();
+      }
+      return;
+    }
+
+    // continue on any success confirmation
+    if (sentAck) {
+      sentAck = false;
+      byte msgId = data[0];
+      if (msgId == POLL) {
+        DW1000.getTransmitTimestamp(timePollSent);
+        //Serial.print("Sent POLL @ "); Serial.println(timePollSent.getAsFloat());
+      } else if (msgId == RANGE) {
+        DW1000.getTransmitTimestamp(timeRangeSent);
         noteActivity();
-      } else {
-        Serial.println("Error check input");
       }
     }
-  }
+    if (receivedAck) {
 
-  void loop() {
-    if (serialInput) {
-      if (!sentAck && !receivedAck) {
-        // check if inactive
-        if (millis() - lastActivity > resetPeriod ) {
-          resetInactive();
+      receivedAck = false;
+      // get message and parse
+      DW1000.getData(data, LEN_DATA);
+      byte msgId = data[0];
+      if (msgId != expectedMsgId && data[17] == myNum) {
+        // unexpected message, start over again
+        if (data[18] == myNum || data[18] == targetNum) {//waiting for reponse from target
+          expectedMsgId = POLL_ACK;
+        } else {//waiting for distance from pod to pod link
+          expectedMsgId = RANGE_REPORT;
         }
+        data[16] = myNum;
+        data[17] = targetNum;
+        transmitPoll();
         return;
       }
+      if (msgId == POLL_ACK && data[17] == myNum) {
+        DW1000.getReceiveTimestamp(timePollAckReceived);
+        expectedMsgId = RANGE_REPORT;
+        data[16] = myNum;
+        data[17] = targetNum;
+        transmitRange();
+        noteActivity();
+      } else if (msgId == RANGE_REPORT && data[17] == myNum) {
+        targetNum = data[16];
+        expectedMsgId = POLL_ACK;
+        float curRange;
+        memcpy(&curRange, data + 1, 4);
+        // Serial.print("Next hop is ");Serial.println(data[18]);
+        //   Serial.print("Time [ms]: "); Serial.print(millis()); Serial.print(" Range from "); Serial.print(targetNum); Serial.print(" to "); Serial.print(data[18]); Serial.print(" : "); Serial.println(curRange,3); //Serial.print(" measure count is ");Serial.println(numReceive);
+        Serial.print(millis()); Serial.print(" "); Serial.print(targetNum); Serial.print(" "); Serial.print(nextHop); Serial.print(" "); Serial.println(curRange, 3); //Serial.print(" measure count is ");Serial.println(numReceive);
 
-      // continue on any success confirmation
-      if (sentAck) {
-        sentAck = false;
-        byte msgId = data[0];
-        if (msgId == POLL) {
-          DW1000.getTransmitTimestamp(timePollSent);
-          //Serial.print("Sent POLL @ "); Serial.println(timePollSent.getAsFloat());
-        } else if (msgId == RANGE) {
-          DW1000.getTransmitTimestamp(timeRangeSent);
-          noteActivity();
-        }
-      }
-      if (receivedAck) {
-
-        receivedAck = false;
-        // get message and parse
-        DW1000.getData(data, LEN_DATA);
-        byte msgId = data[0];
-        if (msgId != expectedMsgId && data[17] == myNum) {
-          // unexpected message, start over again
-          if (data[18] == myNum || data[18] == targetNum) {//waiting for reponse from target
-            expectedMsgId = POLL_ACK;
-          } else {//waiting for distance from pod to pod link
-            expectedMsgId = RANGE_REPORT;
-          }
-          data[16] = myNum;
-          data[17] = targetNum;
-          transmitPoll();
+        //  Serial.println(curRange,3);
+        if (numReceive >= numMeasure) {//change back to 30 after error testing
+          serialInput = false;
+          handleSerialInput();
+          numReceive = 1;
+          numMeasure = 0;
           return;
         }
-        if (msgId == POLL_ACK && data[17] == myNum) {
-          DW1000.getReceiveTimestamp(timePollAckReceived);
-          expectedMsgId = RANGE_REPORT;
+        else {
+          numReceive++;
           data[16] = myNum;
           data[17] = targetNum;
-          transmitRange();
-          noteActivity();
-        } else if (msgId == RANGE_REPORT && data[17] == myNum) {
-          targetNum = data[16];
-          expectedMsgId = POLL_ACK;
-          float curRange;
-          memcpy(&curRange, data + 1, 4);
-          // Serial.print("Next hop is ");Serial.println(data[18]);
-          //   Serial.print("Time [ms]: "); Serial.print(millis()); Serial.print(" Range from "); Serial.print(targetNum); Serial.print(" to "); Serial.print(data[18]); Serial.print(" : "); Serial.println(curRange,3); //Serial.print(" measure count is ");Serial.println(numReceive);
-          Serial.print(millis()); Serial.print(" "); Serial.print(targetNum); Serial.print(" "); Serial.print(nextHop); Serial.print(" "); Serial.println(curRange, 3); //Serial.print(" measure count is ");Serial.println(numReceive);
-
-          //  Serial.println(curRange,3);
-          if (numReceive >= numMeasure) {//change back to 30 after error testing
-            serialInput = false;
-            handleSerialInput();
-            numReceive = 1;
-            numMeasure = 0;
-            return;
+          if (data[18] != myNum && data[18] != targetNum) {
+            expectedMsgId = RANGE_REPORT;
           }
-          else {
-            numReceive++;
-            data[16] = myNum;
-            data[17] = targetNum;
-            if (data[18] != myNum && data[18] != targetNum) {
-              expectedMsgId = RANGE_REPORT;
-            }
-            transmitPoll();
-          }
-          noteActivity();
-        } else if (msgId == RANGE_FAILED && data[17] == myNum) {
-          expectedMsgId = POLL_ACK;
-          data[16] = myNum;
-          data[17] = targetNum;
-          data[18] = nextHop;
           transmitPoll();
-          noteActivity();
         }
+        noteActivity();
+      } else if (msgId == RANGE_FAILED && data[17] == myNum) {
+        expectedMsgId = POLL_ACK;
+        data[16] = myNum;
+        data[17] = targetNum;
+        data[18] = nextHop;
+        transmitPoll();
+        noteActivity();
       }
-    } else {
-      handleSerialInput();
     }
+  } else {
+    handleSerialInput();
   }
+}
