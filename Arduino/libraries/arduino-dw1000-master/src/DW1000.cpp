@@ -601,15 +601,19 @@ void DW1000Class::tune() {
 	if(_channel == CHANNEL_1 || _channel == CHANNEL_2) {
 		if(_pulseFrequency == TX_PULSE_FREQ_16MHZ) {
 			if(_smartPower) {
-				writeValueToBytes(txpower, 0x15355575L, LEN_TX_POWER);
+				//writeValueToBytes(txpower, 0x15355575L, LEN_TX_POWER);
+				writeValueToBytes(txpower, 0x11111111L, LEN_TX_POWER);
 			} else {
-				writeValueToBytes(txpower, 0x75757575L, LEN_TX_POWER);
+				//writeValueToBytes(txpower, 0x75757575L, LEN_TX_POWER);
+				writeValueToBytes(txpower, 0x11111111L, LEN_TX_POWER);
 			}
 		} else if(_pulseFrequency == TX_PULSE_FREQ_64MHZ) {
 			if(_smartPower) {
-				writeValueToBytes(txpower, 0x07274767L, LEN_TX_POWER);
+				//writeValueToBytes(txpower, 0x07274767L, LEN_TX_POWER);
+				writeValueToBytes(txpower, 0x11111111L, LEN_TX_POWER);
 			} else {
-				writeValueToBytes(txpower, 0x67676767L, LEN_TX_POWER);
+				//writeValueToBytes(txpower, 0x67676767L, LEN_TX_POWER);
+				writeValueToBytes(txpower, 0x11111111L, LEN_TX_POWER);
 			}
 		} else {
 			// TODO proper error/warning handling
