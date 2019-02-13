@@ -54,10 +54,10 @@ DW1000Time timeRangeReceived;
 DW1000Time timeComputedRange;
 // data buffer
 #define LEN_DATA 19
-#define LEN_Enviro 101
+#define LEN_Enviro 102
 int sdPointer = 0;
 int sdPointerOld = 0;
-byte myNum = 1;
+byte myNum = 0;
 volatile byte returnNum;
 volatile byte targetNum;
 byte data[LEN_DATA];
@@ -69,6 +69,8 @@ uint32_t roverTime;
 uint8_t my_freq = 1;
 uint32_t lastActivity;
 uint32_t resetPeriod = 250;
+int onTime = 120000;
+int offTime = 30000;
 // reply times (same on both sides for symm. ranging)
 uint16_t replyDelayTimeUS = 3000;
 // ranging counter (per second)
@@ -129,13 +131,13 @@ void setup() {
   // DEBUG chip info and registers pretty printed
   char msg[128];
   DW1000.getPrintableDeviceIdentifier(msg);
-  //Serial.print("Device ID: "); Serial.println(msg);
-  DW1000.getPrintableExtendedUniqueIdentifier(msg);
-  //Serial.print("Unique ID: "); Serial.println(msg);
+  Serial.print("Device ID: "); Serial.println(msg);
+    
+  Serial.print("Unique ID: "); Serial.println(msg);
   DW1000.getPrintableNetworkIdAndShortAddress(msg);
-  // Serial.print("Network ID & Device Address: "); Serial.println(msg);
+  Serial.print("Network ID & Device Address: "); Serial.println(msg);
   DW1000.getPrintableDeviceMode(msg);
-  // Serial.print("Device mode: "); Serial.println(msg);
+  Serial.print("Device mode: "); Serial.println(msg);
   // attach callback for (successfully) sent and received messages
   DW1000.attachSentHandler(handleSent);
   DW1000.attachReceivedHandler(handleReceived);
@@ -144,7 +146,7 @@ void setup() {
   noteActivity();
   // for first time ranging frequency computation
   rangingCountPeriod = millis();
-  endTime = millis() + 300000; //add 5 min
+  endTime = millis() + offTime; //add 5 min
 
   /////////////////////////////////////////////////////////////////////////////////////////////////////////
   //SD CARD READER___________________________________________________________
@@ -558,7 +560,7 @@ void sleep_mode() {
   //DW1000.enableMode(DW1000.MODE_LONGDATA_RANGE_ACCURACY, 1);//slower long range 110 kbps
   DW1000.enableMode(DW1000.MODE_LONGDATA_FAST_ACCURACY);//, 1);//faster long range 6.8 Mbps
   DW1000.commitConfiguration();
-  endTime = millis() + 300000; //add 5 min
+  endTime = millis() + offTime; //add 5 min
   // endTime = millis()+20000;//add 20 sec
 }
 /*
@@ -650,7 +652,7 @@ void loop() {
       //    endTime = 10000 + startTime;//10 sec
 
       memcpy(&roverTime, data + 1, 4);
-      endTime = 1200000 + startTime;//20min
+      endTime = onTime + startTime;//20min
       SPI.setModule (2);  //SPI port 2
       myFile = SD.open(file2, FILE_WRITE);
       //if (myFile) {

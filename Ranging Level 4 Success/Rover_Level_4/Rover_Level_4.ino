@@ -41,7 +41,7 @@ DW1000Time timePollAckReceived;
 DW1000Time timeRangeSent;
 // data buffer
 #define LEN_DATA 19//
-#define LEN_Enviro 101
+#define LEN_Enviro 102
 byte myNum = 255;
 volatile byte targetNum;
 volatile byte nextHop;
@@ -199,8 +199,9 @@ void transmitEnviro() {//request environmental data
       while (Serial.available()) {
         dump = Serial.read();
       }
+      Serial.println(" ");
+       noteActivity();
       break;
-        noteActivity();
     }
     if (millis() - lastActivity > 250 ) {
       //  if (commTry > 100) {
