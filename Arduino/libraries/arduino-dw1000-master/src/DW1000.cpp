@@ -59,7 +59,7 @@ byte       DW1000Class::_pulseFrequency      = TX_PULSE_FREQ_16MHZ;
 byte       DW1000Class::_dataRate            = TRX_RATE_6800KBPS;
 byte       DW1000Class::_preambleLength      = TX_PREAMBLE_LEN_128;
 byte       DW1000Class::_preambleCode        = PREAMBLE_CODE_16MHZ_4;
-byte       DW1000Class::_channel             = CHANNEL_5;
+byte       DW1000Class::_channel             = CHANNEL_1;
 DW1000Time DW1000Class::_antennaDelay;
 boolean    DW1000Class::_smartPower          = false;
 
@@ -1252,7 +1252,7 @@ void DW1000Class::setDefaults() {
 		setReceiverAutoReenable(true);
 		// default mode when powering up the chip
 		// still explicitly selected for later tuning
-		enableMode(MODE_LONGDATA_RANGE_LOWPOWER);
+		enableMode(MODE_LONGDATA_FAST_ACCURACY);
 	}
 }
 

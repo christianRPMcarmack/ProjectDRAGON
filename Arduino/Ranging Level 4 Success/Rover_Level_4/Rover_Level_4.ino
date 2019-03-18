@@ -26,6 +26,7 @@ const uint8_t PIN_SS = SS; // spi select pin
 #define DATA_REQUEST 5
 #define DATA_REQUEST_LAST_SEND 6
 #define DATA_COMPLETE 7
+#define NOT_INITIALIZATION 8
 #define RANGE_FAILED 255
 // message flow state
 volatile byte expectedMsgId = POLL_ACK;
@@ -41,7 +42,7 @@ DW1000Time timePollAckReceived;
 DW1000Time timeRangeSent;
 // data buffer
 #define LEN_DATA 19//
-#define LEN_Enviro 101
+#define LEN_Enviro 102
 byte myNum = 255;
 volatile byte targetNum;
 volatile byte nextHop;
@@ -79,13 +80,13 @@ void setup() {
   // DEBUG chip info and registers pretty printed
   char msg[128];
   DW1000.getPrintableDeviceIdentifier(msg);
-  //Serial.print("Device ID: "); Serial.println(msg);
+  Serial.print("Device ID: "); Serial.println(msg);
   DW1000.getPrintableExtendedUniqueIdentifier(msg);
-  //Serial.print("Unique ID: "); Serial.println(msg);
+  Serial.print("Unique ID: "); Serial.println(msg);
   DW1000.getPrintableNetworkIdAndShortAddress(msg);
-  //Serial.print("Network ID & Device Address: "); Serial.println(msg);
+  Serial.print("Network ID & Device Address: "); Serial.println(msg);
   DW1000.getPrintableDeviceMode(msg);
-  //Serial.print("Device mode: "); Serial.println(msg);
+  Serial.print("Device mode: "); Serial.println(msg);
   // attach callback for (successfully) sent and received messages
   DW1000.attachSentHandler(handleSent);
   DW1000.attachReceivedHandler(handleReceived);
@@ -199,8 +200,9 @@ void transmitEnviro() {//request environmental data
       while (Serial.available()) {
         dump = Serial.read();
       }
+      Serial.println(" ");
+       noteActivity();
       break;
-        noteActivity();
     }
     if (millis() - lastActivity > 250 ) {
       //  if (commTry > 100) {
@@ -449,6 +451,7 @@ void loop() {
       // get message and parse
       DW1000.getData(data, LEN_DATA);
       byte msgId = data[0];
+      /*
       if (msgId != expectedMsgId && data[17] == myNum) {
         // unexpected message, start over again
         if (data[18] == myNum || data[18] == targetNum) {//waiting for reponse from target
@@ -460,6 +463,11 @@ void loop() {
         data[17] = targetNum;
         transmitPoll();
         return;
+      }
+      */
+      if (msgId == NOT_INITIALIZATION && data[17] == myNum) {
+        Serial.print("Pod ");Serial.print(data[16]);Serial.println(" is not initialized");
+        numTimeOut = 3 + numMeasure / 10;  
       }
       if (msgId == POLL_ACK && data[17] == myNum) {
         DW1000.getReceiveTimestamp(timePollAckReceived);

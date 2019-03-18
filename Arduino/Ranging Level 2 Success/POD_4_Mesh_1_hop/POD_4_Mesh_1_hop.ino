@@ -1,5 +1,6 @@
 // Author: Ivan Yurkin
 //Base Ranging Code obtained from https://github.com/thotro/arduino-dw1000
+//Code development was also inspired by the COHIRNT lab to jumpstart desgin
 //Serial Handler and node identification was added on top of base code
 //Tag code is used on the rover beacon to allow the rover to function as a mobile router to obtain ranging measurements to up
 //to 10 nodes 
@@ -39,6 +40,11 @@
 #include <SPI.h>
 #include <DW1000.h>
 
+
+byte myNum = 3;
+
+
+
 // connection pins
 const uint8_t PIN_RST = 9; // reset pin
 const uint8_t PIN_IRQ = PA1; // irq pin
@@ -70,7 +76,7 @@ DW1000Time timeRangeReceived;
 DW1000Time timeComputedRange;
 // data buffer
 #define LEN_DATA 19
-byte myNum = 3;
+
 volatile byte returnNum;
 volatile byte targetNum;
 byte data[LEN_DATA];
@@ -78,7 +84,7 @@ byte data[LEN_DATA];
 
 uint8_t my_freq = 1;
 uint32_t lastActivity;
-uint32_t resetPeriod = 250;
+uint32_t resetPeriod = 50;
 // reply times (same on both sides for symm. ranging)
 uint16_t replyDelayTimeUS = 3000;
 // ranging counter (per second)
@@ -100,8 +106,8 @@ void setup() {
   DW1000.setDefaults();
   DW1000.setDeviceAddress(1);
   DW1000.setNetworkId(10);
-  //DW1000.enableMode(DW1000.MODE_LONGDATA_RANGE_ACCURACY, 1);//changed
-  DW1000.enableMode(DW1000.MODE_LONGDATA_FAST_ACCURACY, 1);//
+ // DW1000.enableMode(DW1000.MODE_LONGDATA_RANGE_ACCURACY);//, 1);//changed
+  DW1000.enableMode(DW1000.MODE_LONGDATA_FAST_ACCURACY);//, 1);//faster long range 6.8 Mbps
   DW1000.commitConfiguration();
   Serial.println(F("Committed configuration ..."));
   // DEBUG chip info and registers pretty printed
@@ -301,7 +307,7 @@ void loop() {
         transmitPoll();
       }
 
-
+/*
       if (msgId != expectedMsgId && data[17 ] == myNum) {//error check, should not be here unless expectedMsgId was set incorrectly
         // unexpected message, start over again
         //Serial.print("Received wrong message # "); Serial.println(msgId);
@@ -314,6 +320,7 @@ void loop() {
         transmitPoll();
         return;
       }
+      */
       if (msgId == POLL_ACK && data[17] == myNum) {//respond to pod
         DW1000.getReceiveTimestamp(timePollAckReceived);
         expectedMsgId = RANGE_REPORT;

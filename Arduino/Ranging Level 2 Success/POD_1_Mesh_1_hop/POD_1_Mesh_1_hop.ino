@@ -40,6 +40,11 @@
 #include <SPI.h>
 #include <DW1000.h>
 
+
+byte myNum = 0;
+
+
+
 // connection pins
 const uint8_t PIN_RST = 9; // reset pin
 const uint8_t PIN_IRQ = PB0; // irq pin
@@ -71,7 +76,7 @@ DW1000Time timeRangeReceived;
 DW1000Time timeComputedRange;
 // data buffer
 #define LEN_DATA 19
-byte myNum = 0;
+
 volatile byte returnNum;
 volatile byte targetNum;
 byte data[LEN_DATA];
@@ -79,7 +84,7 @@ byte data[LEN_DATA];
 
 uint8_t my_freq = 1;
 uint32_t lastActivity;
-uint32_t resetPeriod = 250;
+uint32_t resetPeriod = 50;
 // reply times (same on both sides for symm. ranging)
 uint16_t replyDelayTimeUS = 3000;
 // ranging counter (per second)
@@ -302,7 +307,7 @@ void loop() {
         transmitPoll();
       }
 
-
+/*
       if (msgId != expectedMsgId && data[17 ] == myNum) {//error check, should not be here unless expectedMsgId was set incorrectly
         // unexpected message, start over again
         //Serial.print("Received wrong message # "); Serial.println(msgId);
@@ -315,6 +320,7 @@ void loop() {
         transmitPoll();
         return;
       }
+      */
       if (msgId == POLL_ACK && data[17] == myNum) {//respond to pod
         DW1000.getReceiveTimestamp(timePollAckReceived);
         expectedMsgId = RANGE_REPORT;

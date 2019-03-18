@@ -7,7 +7,7 @@
 #define zStep   4   // Z Axis Step Pin
 #define limitSwitch 11 //whatever pin its on
 int load = 0;       // Start loading sequence with side 'Y'
-int stepDelay = 1000;    // Delay between each pause (1 ms)
+//int stepDelay = 1000;    // Delay between each pause (1 ms)
 int degTurn = 0;
 byte charVal = 0;
 byte dump = 0;
@@ -33,20 +33,26 @@ void serialHandler() {
     charVal = Serial.read();
   //  Serial.println(charVal);
     if (charVal == 'R') {
+      dump = Serial.read();
       if ((load % 2) == 0) {
-        step(false, yDir, yStep, 200);   // Rotate y axis CW 1 turn (RIGHT Reloader?)
+        /// 1000 delay for reload
+        /// 2000 delay for azimuth
+        //1/16 mirco stepping on azimuth
+        step(true, yDir, yStep, 400, 8000);   // Rotate y axis CW 1 turn (RIGHT Reloader?)
       }
       if ((load % 2) == 1) {
-        step(true, xDir, xStep, 200);    // Rotate x axis CCW 1 turn (LEFT Reloader?)
+        step(true, xDir, xStep, 200, 1000);    // Rotate x axis CCW 1 turn (LEFT Reloader?)
       }
-      load++;
+      //load++;
+      load = 0;
     }
     if (charVal == 'B') {
       while(!Serial.available()){}
       degTurn = 0;
+      char buffer[] = {' ',' ',' ',' '};
       Serial.readBytesUntil('\n',buffer,4);
       degTurn = atoi(buffer);
-      //Serial.println(degTurn);
+      Serial.println(degTurn);
       degTurn += 140;
       Serial.println(degTurn);
       if (degTurn < 0 || degTurn > 280) {
@@ -55,16 +61,19 @@ void serialHandler() {
       else {
         //Using 1.8 deg per rotation for nema 17 change if the base motor is different
         //Nema 23 should be the same deg per rotatation and but will need to be tested
-        steps = degTurn / 1.8; // this will be an int but accuracy isnt the biggest thing will spit back out what the actual deg is to rover
-   //     Serial.println(steps);
-        actDegTurn = (double) steps * 1.8-140.0;
+        //assuming the step conversion is 2x
+        steps = degTurn / 1.8*17; // this will be an int but accuracy isnt the biggest thing will spit back out what the actual deg is to rover
+        Serial.println(steps);
+        actDegTurn = (double) steps * 17/1.8-140.0;
         limit = digitalRead(limitSwitch);
         while (limit == LOW) {
-          step(false, zDir, zStep, 1);//might change to true depending on rotation direction assuming CW is positive
+          step(false, yDir, yStep, 1, 8000);//might change to true depending on rotation direction assuming CW is positive
           limit = digitalRead(limitSwitch);
+          Serial.println("Waiting for press");
         }
         delay(250);
-        step(true, zDir, zStep, steps);
+        step(true, yDir, yStep, steps, 8000);
+        digitalWrite(yStep, LOW);
         Serial.print("Actual pointing location: ");Serial.print(actDegTurn);Serial.println(" from current rover heading (positive is CW looking down at the rover)");
       }
     }
@@ -72,7 +81,7 @@ void serialHandler() {
 }
 
 
-void step(boolean dir, byte dirPin, byte stepperPin, int steps)
+void step(boolean dir, byte dirPin, byte stepperPin, int steps, int stepDelay)
 {
   digitalWrite(dirPin, dir);
   for (int i = 0; i < steps; i++) {

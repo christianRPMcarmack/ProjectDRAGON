@@ -19,7 +19,7 @@
 #include <SD.h>
 
 // Pod Number
-byte myNum = 0;
+byte myNum = 3;
 //
 
 
