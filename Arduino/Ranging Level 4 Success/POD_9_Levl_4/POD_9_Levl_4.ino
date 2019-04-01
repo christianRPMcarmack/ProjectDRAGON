@@ -1,11 +1,11 @@
 // Author: Ivan Yurkin, Amanda Sirrola
 //Base Ranging Code obtained from https://github.com/thotro/arduino-dw1000
 //Code development was also inspired by the COHIRNT lab to jumpstart desgin
-//Serial Handler and node identification was added on top of base code
+//// Serial Handler and node identification was added on top of base code
 //Tag code is used on the rover beacon to allow the rover to function as a mobile router to obtain ranging measurements to up
 //to 10 nodes
-//Tag code waits for serial input ranging from 0-9 for pods 1-10. Index starts at 0. Then tag takes 30 measurements and reports
-//them or times out 3 times before waiting for new serial input
+//Tag code waits for // Serial input ranging from 0-9 for pods 1-10. Index starts at 0. Then tag takes 30 measurements and reports
+//them or times out 3 times before waiting for new // Serial input
 //added functionality for mesh networking by getting pod to pod distance an reporting back to tag.
 
 #include <SPI.h>
@@ -97,7 +97,7 @@ float samplingRate = 0;
 
 // ASSIGNING VARIABLES ______________________________________________________
 
-unsigned long time_since_turn_on; //If printing to Serial Monitor
+unsigned long time_since_turn_on; //If printing to // Serial Monitor
 
 // Enviromental Sensor
 unsigned int data_MPL[6];
@@ -121,7 +121,7 @@ String file2;
 ////////////////////////////////////////////////////////////////////////////////////
 void setup() {
   // DEBUG monitoring
-  Serial.begin(2000000);
+  // Serial.begin(2000000);
   delay(1000);
   // initialize the driver
   DW1000.begin(PIN_IRQ, PIN_RST);
@@ -134,17 +134,17 @@ void setup() {
   //DW1000.enableMode(DW1000.MODE_LONGDATA_RANGE_ACCURACY, 1);//slower long range 110 kbps
   DW1000.enableMode(DW1000.MODE_LONGDATA_FAST_ACCURACY);//, 1);//faster long range 6.8 Mbps
   DW1000.commitConfiguration();
-  // Serial.println(F("Committed configuration ..."));
+  // // Serial.println(F("Committed configuration ..."));
   // DEBUG chip info and registers pretty printed
   char msg[128];
   DW1000.getPrintableDeviceIdentifier(msg);
-  Serial.print("Device ID: "); Serial.println(msg);
+  // Serial.print("Device ID: "); // Serial.println(msg);
 
-  Serial.print("Unique ID: "); Serial.println(msg);
+  // Serial.print("Unique ID: "); // Serial.println(msg);
   DW1000.getPrintableNetworkIdAndShortAddress(msg);
-  Serial.print("Network ID & Device Address: "); Serial.println(msg);
+  // Serial.print("Network ID & Device Address: "); // Serial.println(msg);
   DW1000.getPrintableDeviceMode(msg);
-  Serial.print("Device mode: "); Serial.println(msg);
+  // Serial.print("Device mode: "); // Serial.println(msg);
   // attach callback for (successfully) sent and received messages
   DW1000.attachSentHandler(handleSent);
   DW1000.attachReceivedHandler(handleReceived);
@@ -162,15 +162,15 @@ void setup() {
   SPI.setModule (2);  // SPI port 2
   //SPI.setClockDivider(SPI_CLOCK_DIV2);
 
-  //INITIAL SET-UP (SERIAL)__________________________________________________
+  //INITIAL SET-UP (// Serial)__________________________________________________
 
-  //Serial.print("Initializing SD card...");
+  //// Serial.print("Initializing SD card...");
 
   if (!SD.begin(PB12)) {
-    //  Serial.println("initialization failed!");
+    //  // Serial.println("initialization failed!");
   }
-  // Serial.println("initialization done.");
-  //  Serial.println(millis());
+  // // Serial.println("initialization done.");
+  //  // Serial.println(millis());
   int i = 1;
   file_pod1 = String(file_pod + myNum);
   //file0 = String(file_pod1 + file);
@@ -197,7 +197,7 @@ void setup() {
   myFile.println("zAccl [g]");
   myFile.close();
   // Initialise I2C communication
-  //Serial.println(millis());
+  //// Serial.println(millis());
   //INITIAL SET-UP (WIRE)_____________________________________________________
   // Initialise I2C communication
   Wire.begin();
@@ -212,7 +212,7 @@ void setup() {
   // Stop I2C transmission
   Wire.endTransmission();
   delay(300);
-  //  Serial.println(millis());
+  //  // Serial.println(millis());
   //ACCELEROMETER SENSOR____________________________________________________
   // Initialise I2C communication as MASTER
 
@@ -234,11 +234,11 @@ void setup() {
   Wire.write(0x00);
   // Stop I2C Transmission
   Wire.endTransmission();
-  //Serial.println("setup complete");
+  //// Serial.println("setup complete");
   SPI.setModule (1);  // SPI port 1
-  // Serial.println(millis());
-  //  Serial.println(endTime);
-  //  Serial.println(millis());
+  // // Serial.println(millis());
+  //  // Serial.println(endTime);
+  //  // Serial.println(millis());
 }
 
 
@@ -430,10 +430,10 @@ void  takeEnviro() {
 
     // close the file:
     myFile.close();
-    //  Serial.println("file okay");
+    //  // Serial.println("file okay");
   } else {
     // if the file did not open, print an error:
-    //  Serial.println("error opening file");
+    //  // Serial.println("error opening file");
   }
 
 }
@@ -454,7 +454,7 @@ void resetInactive() {// reset itself if nothing received. Add later functionali
   if (resetCount >= 19) {
     SPI.setModule (2);  //SPI port 2
     takeEnviro();
-    Serial.println("Took Enviro");
+    // Serial.println("Took Enviro");
     SPI.setModule (1);  // SPI port 1
     if (initialized == true) {
       expectedMsgId = POLL;
@@ -556,10 +556,10 @@ void sleep_mode() {
   long int alarmDelay = 300;//seconds in sleep
   //long int alarmDelay = 20;//seconds in sleep
 
-  // Serial.println("Goto Sleep");
+  // // Serial.println("Goto Sleep");
   sleepAndWakeUp(STANDBY, &rt, alarmDelay);
   //  delay(10000);
-  //   Serial.println("Wake up");
+  //   // Serial.println("Wake up");
   //wakeup dwm1000
   DW1000.spiWakeup();
   DW1000.begin(PIN_IRQ, PIN_RST);
@@ -611,29 +611,29 @@ void computeRangeSymmetric() {
 */
 
 void loop() {
-  //  Serial.println("test");
+  //  // Serial.println("test");
   int32_t curMillis = millis();
-  //Serial.println(curMillis);
-  //  Serial.println(lastActivity);
+  //// Serial.println(curMillis);
+  //  // Serial.println(lastActivity);
   if (!sentAck && !receivedAck) {
     // check if inactive
     if ( initialized == true && endTime < millis()) {
-      //   Serial.println("Sleep");
+      //   // Serial.println("Sleep");
       sleep_mode();
     }
     if (file_true == true && endTime < millis() && initialized == false) {
-      //    Serial.println("Sleep");
+      //    // Serial.println("Sleep");
       sleep_mode();
     }
     if (curMillis - lastActivity > resetPeriod) {
       resetInactive();
-      //    Serial.println("Reset");
+      //    // Serial.println("Reset");
     }
     return;
   }
   // continue on any success confirmation
   if (sentAck) {
-    //  Serial.println("Sending");
+    //  // Serial.println("Sending");
     sentAck = false;
     byte msgId = data[0];
     if (msgId == POLL) {//take timestamp
@@ -649,13 +649,13 @@ void loop() {
     }
   }
   if (receivedAck) {
-    //   Serial.println("Receiving");
+    //   // Serial.println("Receiving");
     receivedAck = false;
     // get message and parse
     DW1000.getData(data, LEN_DATA);
     targetNum = data[16];
     byte msgId = data[0];
-    //  Serial.println("Msg Received");
+    //  // Serial.println("Msg Received");
     /////////////////////adding low power stuff here remove if not working
     if (msgId == INITIALIZATION) {
       initialized = true;
@@ -675,8 +675,8 @@ void loop() {
       myFile.close();
       SPI.setModule (1);  //SPI port 1
       //   }
-      Serial.print("Initialized for ranging ");
-      //  Serial.println(roverTime);
+      // Serial.print("Initialized for ranging ");
+      //  // Serial.println(roverTime);
       expectedMsgId = POLL;
       noteActivity();
     }
@@ -684,12 +684,12 @@ void loop() {
       //if (initialized == true && msgId != INITIALIZATION) {
       if (msgId != expectedMsgId && data[17] == myNum) {// && (data[18] == 255 || data[18] == myNum)) {
       // unexpected message, start over again (except if already POLL)
-      Serial.println("error");
+      // Serial.println("error");
       protocolFailed = true;//if you get to this point something bad happened and expectedMsgId was not set properly
       }
       //////////mesh it
     */
-    //  Serial.println(initialized);
+    //  // Serial.println(initialized);
     if (initialized == false) {
       if (data[17] == myNum || data[18] == myNum) {
         DW1000.newTransmit();
@@ -703,7 +703,7 @@ void loop() {
     }
     if (initialized == true) {
       ////////enviro transfer
-      if (msgId ==  DATA_COMPLETE && data[17] == myNum) {//re initalize the sd card file with rover timestamp
+      if (msgId ==  DATA_COMPLETE && data[1] == myNum) {//re initalize the sd card file with rover timestamp
         memcpy(&roverTime, data + 1, 4);
         SPI.setModule (2);  //SPI port 2
         myFile = SD.open(file2, FILE_WRITE);
@@ -718,9 +718,9 @@ void loop() {
       }
       if (msgId ==  DATA_REQUEST && data[1] == myNum) { //send next portion of sd card file to rover beacon
         // enviroTransfer == true) {
-        //    Serial.println("Getting ready to print file");
-        //  Serial.println(data[1]);
-        //  Serial.println(data[2]);
+        //    // Serial.println("Getting ready to print file");
+        //  // Serial.println(data[1]);
+        //  // Serial.println(data[2]);
         enviroTransfer = true;
         SPI.setModule (2);  //SPI port 2
         myFile = SD.open(file2);
@@ -733,7 +733,7 @@ void loop() {
           for (int i = 2; i < LEN_Enviro; i++) {
             if ( myFile.available()) {
               dataEnviro[i] = myFile.read();
-              Serial.write(dataEnviro[i]);
+              // Serial.write(dataEnviro[i]);
             }
             else {
               dataEnviro[0] = DATA_COMPLETE;
@@ -744,10 +744,10 @@ void loop() {
           noteActivity();
         }
         if (!myFile) {
-          Serial.println("error with sd");
+          // Serial.println("error with sd");
         }
         if (dataEnviro[0] == DATA_COMPLETE) {
-          // Serial.println("Transfer Complete");
+          // // Serial.println("Transfer Complete");
           myFile.close();
           sdPointerOld = 0;
           sdPointer = 0;
@@ -775,16 +775,16 @@ void loop() {
           sdPointer = myFile.position();
           myFile.close();
         }
-        //    Serial.println(sdPointer);
+        //    // Serial.println(sdPointer);
         SPI.setModule (1);  //SPI port 2
         transmitEnviro();
-        //  Serial.println("Sending Enviro");
+        //  // Serial.println("Sending Enviro");
         noteActivity();
       }
 
 
-      if (msgId == DATA_REQUEST_LAST_SEND && data[1] == myNum) {
-        //  Serial.println("RESENDING");
+      if (msgId == DATA_REQUEST_LAST_SEND && data[17] == myNum) {
+        //  // Serial.println("RESENDING");
         enviroTransfer = true;
         SPI.setModule (2);  //SPI port 2
         myFile = SD.open(file2);
@@ -796,12 +796,12 @@ void loop() {
           if (myFile) {
             if ( myFile.available()) {
               dataEnviro[i] = myFile.read();
-              //          Serial.write(dataEnviro[i]);
+              //          // Serial.write(dataEnviro[i]);
             }
           }
         }
         myFile.close();
-        //   Serial.println(sdPointer);
+        //   // Serial.println(sdPointer);
         SPI.setModule (1);  //SPI port 2
         transmitEnviro();
         noteActivity();
@@ -824,13 +824,13 @@ void loop() {
         /*
                 if (msgId != expectedMsgId && data[17 ] == myNum) {//error check, should not be here unless expectedMsgId was set incorrectly
                   // unexpected message, start over again
-                  //Serial.print("Received wrong message # "); Serial.println(msgId);
+                  //// Serial.print("Received wrong message # "); // Serial.println(msgId);
                   expectedMsgId = POLL_ACK;
-                  //   Serial.print("Receive target is "); Serial.print(data[17]); Serial.print(" Receive return is "); Serial.println(data[16]);
+                  //   // Serial.print("Receive target is "); // Serial.print(data[17]); // Serial.print(" Receive return is "); // Serial.println(data[16]);
                   data[16] = myNum;
                   data[17] = targetNum;
-                  // Serial.print("Next hop is ");Serial.println(data[18]);
-                  //Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.println(data[16]);
+                  // // Serial.print("Next hop is ");// Serial.println(data[18]);
+                  //// Serial.print("Target is "); // Serial.print(data[17]); // Serial.print(" Return is "); // Serial.println(data[16]);
                   transmitPoll();
                   return;
                 }
@@ -838,11 +838,11 @@ void loop() {
         if (msgId == POLL_ACK && data[17] == myNum) {//respond to pod
           DW1000.getReceiveTimestamp(timePollAckReceived);
           expectedMsgId = RANGE_REPORT;
-          //Serial.print("Receive target is "); Serial.print(data[17]); Serial.print(" Receive return is "); Serial.println(data[16]);
+          //// Serial.print("Receive target is "); // Serial.print(data[17]); // Serial.print(" Receive return is "); // Serial.println(data[16]);
           data[16] = myNum;
           data[17] = targetNum;
-          //  Serial.print("Next hop is ");Serial.println(data[18]);
-          // Serial.print("Target is "); Serial.print(data[17]); Serial.print(" Return is "); Serial.println(data[16]);
+          //  // Serial.print("Next hop is ");// Serial.println(data[18]);
+          // // Serial.print("Target is "); // Serial.print(data[17]); // Serial.print(" Return is "); // Serial.println(data[16]);
           transmitRange();
           noteActivity();
         }
@@ -859,13 +859,13 @@ void loop() {
 
       if (msgId == POLL && data[17] == myNum && (data[18] == 255 || data[18] == myNum)) {//rover requests to talk to current pod
         // on POLL we (re-)start, so no protocol failure
-        // Serial.println("Poll Received");
+        // // Serial.println("Poll Received");
         protocolFailed = false;
         DW1000.getReceiveTimestamp(timePollReceived);
         expectedMsgId = RANGE;
         data[17] = targetNum;
         data[16] = myNum;
-        // Serial.print("Tarnget is ");Serial.print(data[17]);Serial.print(" Return is ");Serial.println(data[16]);
+        // // Serial.print("Tarnget is ");// Serial.print(data[17]);// Serial.print(" Return is ");// Serial.println(data[16]);
         transmitPollAck();
         noteActivity();
       }
