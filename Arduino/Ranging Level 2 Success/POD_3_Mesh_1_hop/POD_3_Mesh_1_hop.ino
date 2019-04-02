@@ -41,7 +41,7 @@
 #include <DW1000.h>
 
 
-byte myNum = 2;
+byte myNum =1;
 
 
 
@@ -91,7 +91,11 @@ uint16_t replyDelayTimeUS = 3000;
 uint16_t successRangingCount = 0;
 uint32_t rangingCountPeriod = 0;
 float samplingRate = 0;
-
+byte msgId;
+int32_t curMillis;
+float curRange1;
+float distance;
+ char msg[128];
 void setup() {
   // DEBUG monitoring
   Serial.begin(2000000);
@@ -111,7 +115,7 @@ void setup() {
   DW1000.commitConfiguration();
   Serial.println(F("Committed configuration ..."));
   // DEBUG chip info and registers pretty printed
-  char msg[128];
+ 
   DW1000.getPrintableDeviceIdentifier(msg);
   //Serial.print("Device ID: "); Serial.println(msg);
   DW1000.getPrintableExtendedUniqueIdentifier(msg);
@@ -257,10 +261,13 @@ void computeRangeSymmetric() {
 */
 
 void loop() {
-  int32_t curMillis = millis();
+  curMillis = millis();
+
   if (!sentAck && !receivedAck) {
     // check if inactive
     if (curMillis - lastActivity > resetPeriod) {
+         DW1000.getPrintableDeviceMode(msg);
+          Serial.print("Device mode: "); Serial.println(msg);
       resetInactive();
       //  Serial.println("Reset");
     }
@@ -269,7 +276,7 @@ void loop() {
   // continue on any success confirmation
   if (sentAck) {
     sentAck = false;
-    byte msgId = data[0];
+    msgId = data[0];
     if (msgId == POLL) {//take timestamp
       DW1000.getTransmitTimestamp(timePollSent);
       //Serial.print("Sent POLL @ "); Serial.println(timePollSent.getAsFloat());
@@ -287,10 +294,12 @@ void loop() {
     receivedAck = false;
     // get message and parse
     DW1000.getData(data, LEN_DATA);
+    Serial.print("Msg Id: ");Serial.print(data[0]);Serial.print(" Target Id: "); Serial.print(data[17]);Serial.print(" Return Id: "); Serial.print(data[16]); Serial.print(" Mesh Id: ");Serial.println(data[18]);
     targetNum = data[16];
-    byte msgId = data[0];
+    msgId = data[0];
     if (msgId != expectedMsgId && data[17] == myNum) {// && (data[18] == 255 || data[18] == myNum)) {
       // unexpected message, start over again (except if already POLL)
+      Serial.println("Error");
       protocolFailed = true;//if you get to this point something bad happened and expectedMsgId was not set properly
     }
     //////////mesh it
@@ -334,9 +343,9 @@ void loop() {
       }
       if (msgId == RANGE_REPORT && data[17] == myNum) {//if another pod reports distnace, send the distance back to the rover through the requested link
         expectedMsgId = POLL;
-        float curRange1;
         targetNum = returnNum;
         memcpy(&curRange1, data + 1, 4);
+     
         //delay(1);
         transmitRangeReport(curRange1);
       }
@@ -367,7 +376,7 @@ void loop() {
         data[16] = myNum;
         //Serial.print("Target is ");Serial.print(data[17]);Serial.print(" Return is ");Serial.println(data[16]);
         transmitRangeReport(timeComputedRange.getAsMeters());//change .getAsMircoSeconds() to .getAsMeters()
-        float distance = timeComputedRange.getAsMeters();
+        distance = timeComputedRange.getAsMeters();
         // Serial.print("Range: "); Serial.print(distance); Serial.print(" m");
         //  Serial.print("\t Sampling: "); Serial.print(samplingRate); Serial.println(" Hz");
         // update sampling rate (each second)
